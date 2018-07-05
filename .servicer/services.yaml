@@ -6,7 +6,7 @@ ci:
 providers:
   pypi:
     libraries:
-      - twine=1.11.0
+      - twine==1.11.0
 
 services:
   pypi:
@@ -15,6 +15,9 @@ services:
 
     config:
       steps:
+        - type: setup_py
+          args:
+            command: sdist
         - type: load_repository_config
         - type: generate_pypirc
         - type: upload
