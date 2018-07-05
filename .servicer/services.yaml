@@ -1,0 +1,22 @@
+ci:
+  providers:
+    - circleci
+  image: circleci/python:3.6.4
+
+providers:
+  pypi:
+    libraries:
+      - twine=1.11.0
+
+services:
+  pypi:
+    provider: pypi
+    service_type: pypi
+
+    config:
+      steps:
+        - type: load_repository_config
+        - type: generate_pypirc
+        - type: upload
+          args:
+            server: testpypi

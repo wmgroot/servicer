@@ -1,0 +1,23 @@
+# Python CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-python/ for more details
+#
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/python:3.6.4
+
+      # Specify service dependencies here if necessary
+      # CircleCI maintains a library of pre-built images
+      # documented at https://circleci.com/docs/2.0/circleci-images/
+      # - image: circleci/postgres:9.4
+
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+      - run: pip install PyYAML==3.12 requests==2.18.4
+      - run: pip install --index-url https://test.pypi.org/simple/ servicer==0.2.14
+      - run: servicer --step=test
+      - run: servicer
