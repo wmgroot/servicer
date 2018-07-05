@@ -88,19 +88,19 @@ SERVICE_ENVIRONMENT: test
 
 ## Usage ##
 ```
-python -m servicer
+servicer
 ```
 This will deploy an environment using the `SERVICE_ENVIRONMENT` or `BRANCH` environment variables, in that order. For the example `.env.yaml` above, the resulting environment would be called `test`.
 
 For the simplest use case of Servicer, simply add this command to your CI workflow, and each of your services will be deployed each time your CI workflow runs.
 
 ```
-python -m servicer --service=foo
+servicer --service=foo
 ```
 This will deploy only the service with name `foo`.
 
 ```
-python -m servicer --step=build,test
+servicer --step=build,test
 ```
 By default, servicer executes only the deploy step for your services.
 This command will execute and `build` or `test` steps present in your config file.

@@ -290,8 +290,9 @@ class Servicer():
 
         service['results'] = {}
 
-        if 'service_adapter' in service:
-            results = service['service_adapter'].up()
+        if 'module' in service:
+            adapter = service['module'].Service(service['config'])
+            results = adapter.up()
             if results:
                 self.store_results(service, results)
         elif 'shell_script' in service:

@@ -23,14 +23,17 @@ class Service(BaseService):
 
     def run_steps(self, steps):
         for step in steps:
-            getattr(self, step['type'])(**step['args'])
+            getattr(self, step['type'])(**step.get('args', {}))
+
+    def setup_py(self, command):
+        self.run('python setup.py %s' % command)
 
     def load_repository_config(self, config=None):
         if config:
             self.repository_config = config
         else:
             self.repository_config = {
-                'servers':
+                'servers': {
                     'testpypi': {
                         'repository': 'https://test.pypi.org/legacy/',
                         'username': self.username,
@@ -41,23 +44,23 @@ class Service(BaseService):
                         'username': self.username,
                         'password': self.password,
                     },
-                ],
+                },
             }
 
-    def generate_pypirc(self, path='~/.pypirc'):
+    def generate_pypirc(self, path='%s/.pypirc' % os.environ['HOME']):
         print('generating .pypirc at %s' % path)
         with open(path, 'w') as pypirc:
-            pypirc.write('[distutils]')
-            pypirc.write('index-servers =')
-            for server, config in self.repository_config.items():
-                pypirc.write('    %s' % server)
-            pypirc.write('')
+            pypirc.write('[distutils]\n')
+            pypirc.write('index-servers =\n')
+            for server, config in self.repository_config['servers'].items():
+                pypirc.write('    %s\n' % server)
+            pypirc.write('\n')
 
-            for server, config in self.repository_config.items():
-                pypirc.write('[%s]' % server)
-                for field in ['repository username password'.split(' ')]:
-                    pypirc.write('%s: %s' % (field, config[field]))
-                pypirc.write('')
+            for server, config in self.repository_config['servers'].items():
+                pypirc.write('[%s]\n' % server)
+                for field in 'repository username password'.split():
+                    pypirc.write('%s: %s\n' % (field, config[field]))
+                pypirc.write('\n')
 
         print('.pypirc written to %s' % path)
 
