@@ -40,7 +40,6 @@ class Service(BaseService):
                         'password': self.password,
                     },
                     'pypi': {
-                        'repository': 'https://pypi.python.org/pypi',
                         'username': self.username,
                         'password': self.password,
                     },
@@ -59,7 +58,8 @@ class Service(BaseService):
             for server, config in self.repository_config['servers'].items():
                 pypirc.write('[%s]\n' % server)
                 for field in 'repository username password'.split():
-                    pypirc.write('%s: %s\n' % (field, config[field]))
+                    if field in config:
+                        pypirc.write('%s: %s\n' % (field, config[field]))
                 pypirc.write('\n')
 
         print('.pypirc written to %s' % path)

@@ -20,7 +20,6 @@ jobs:
       - run: sudo chown -R circleci:circleci /usr/local/bin
       - run: sudo chown -R circleci:circleci /usr/local/lib/python3.6/site-packages
       - run: sudo chown -R circleci:circleci /usr/local/man/man1
-      - run: pip install PyYAML==3.12 requests==2.18.4
-      - run: pip install --index-url https://test.pypi.org/simple/ servicer==0.2.21
+      - run: pip install servicer==0.3.0
       - run: servicer --step=test
       - run: servicer
