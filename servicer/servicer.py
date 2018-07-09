@@ -56,7 +56,6 @@ class Servicer():
     def load_config(self, args):
         services_config_file = '%s/%s' % (args['servicer_config_path'], args['services_file'])
         print(f'loading services config from ({services_config_file})')
-        # services_config = yaml.load(open(services_config_file))
         services_config = {}
         self.load_extended_config(config_path=services_config_file, config=services_config)
 
@@ -163,7 +162,6 @@ class Servicer():
             else:
                 config = service.get('config', {})
                 service['module'] = module
-                # service['service_adapter'] = module.Service(config)
 
         return services
 
@@ -244,18 +242,17 @@ class Servicer():
                             for c in commands:
                                 self.run(c, shell=True)
 
-                        if 'module' in service:
+                        if 'module' in service and 'config' in service['steps'][step]:
                             config = service['steps'][step].get('config')
-                            if config:
-                                print('Step Config (%s): ' % step)
-                                print(json.dumps(config, indent=4, sort_keys=True))
-                                adapter = service['module'].Service(config)
-                                adapter.up()
-                            else:
-                                config = service.get('config', {})
-                                adapter = service['module'].Service(config)
-                                if hasattr(adapter, step):
-                                    getattr(adapter, step)()
+                            print('Step Config (%s): ' % step)
+                            print(json.dumps(config, indent=4, sort_keys=True))
+                            adapter = service['module'].Service(config)
+                            adapter.up()
+                            # else:
+                            #     config = service.get('config', {})
+                            #     adapter = service['module'].Service(config)
+                            #     if hasattr(adapter, step):
+                            #         getattr(adapter, step)()
 
                     # if service.get('service_adapter') and hasattr(service['service_adapter'], step):
                     #     module = getattr(service['service_adapter'], step)
