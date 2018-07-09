@@ -9,9 +9,6 @@ class Service(BaseService):
     def __init__(self, config):
         super().__init__(config)
 
-        self.username = os.environ['PYPI_USERNAME']
-        self.password = os.environ['PYPI_PASSWORD']
-
     def up(self):
         super().up()
 
@@ -36,12 +33,12 @@ class Service(BaseService):
                 'servers': {
                     'testpypi': {
                         'repository': 'https://test.pypi.org/legacy/',
-                        'username': self.username,
-                        'password': self.password,
+                        'username': os.environ['PYPI_USERNAME'],
+                        'password': os.environ['PYPI_PASSWORD'],
                     },
                     'pypi': {
-                        'username': self.username,
-                        'password': self.password,
+                        'username': os.environ['PYPI_USERNAME'],
+                        'password': os.environ['PYPI_PASSWORD'],
                     },
                 },
             }
