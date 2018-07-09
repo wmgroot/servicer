@@ -97,6 +97,7 @@ class Servicer():
 
         self.config['ci']['adapters'] = {}
         for p in self.config['ci']['providers']:
+            print('CI Adapter: %s' % p)
             ci_adapter_modules = [
                 {
                     'name': 'ci_adapters.%s' % p,
@@ -115,6 +116,7 @@ class Servicer():
         for ci_adapter in self.config['ci']['adapters'].values():
             ci_adapter.convert_environment_variables()
 
+        print()
         self.service_environment = os.getenv('SERVICE_ENVIRONMENT') or self.get_service_environment(os.environ['BRANCH'])
 
         print('service environment: %s' % self.service_environment)
