@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import hashlib
 import requests
 from requests.auth import HTTPBasicAuth
@@ -63,3 +64,27 @@ class Service(BaseService):
 
     def upload(self, server='pypi', path='dist/*'):
         self.run('twine upload %s -r %s' % (path, server))
+
+    def if_package_version_exists(self, package_name=None, version=None, action=None):
+        print('checking for %s-%s...' % (package_name, version))
+
+        exists = version in self.get_versions(package_name)
+        if exists and action:
+            if action == 'error':
+                raise ValueError('Package already exists! %s-%s' % (package_name, version))
+
+        return exists
+
+    def get_versions(self, package_name=None):
+        result = self.run('pip install %s==' % package_name, check=False, hide_output=True)
+        regex = re.compile('\(from versions: (.*)\)')
+        match = regex.search(result['stdout'])
+
+        versions = []
+        if match:
+            versions.extend(match.group(1).split(', '))
+
+        print('package: %s' % package_name)
+        print('versions: %s' % versions)
+
+        return versions

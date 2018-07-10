@@ -40,20 +40,28 @@ class BaseService:
 
         return value
 
-    def run(self, command, check=True, shell=True):
+    def run(self, command, check=True, shell=True, hide_output=False):
         print('executing: %s' % command)
+        result = { 'command': command }
 
         try:
-            result = subprocess.run(
+            command_result = subprocess.run(
                 command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 check=check,
                 shell=shell,
             )
-            # result = subprocess.run(command, check = check, shell = shell)
-            print(result.stdout.decode('utf-8'))
+            # command_result = subprocess.run(command, check = check, shell = shell)
+            result['command_result'] = command_result
+            result['stdout'] = command_result.stdout.decode('utf-8')
+
+            if not hide_output:
+                print(result['stdout'])
+
         except subprocess.CalledProcessError as e:
             print('failed: %s' % e.returncode)
             print(e.output.decode('utf-8'))
             raise
+
+        return result
