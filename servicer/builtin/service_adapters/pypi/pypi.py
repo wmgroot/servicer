@@ -26,7 +26,7 @@ class Service(BaseService):
     def setup_py(self, command):
         self.run('python setup.py %s' % command)
 
-    def load_repository_config(self, config=None):
+    def generate_pypi_config(self, config=None):
         if config:
             self.repository_config = config
         else:
@@ -44,16 +44,58 @@ class Service(BaseService):
                 },
             }
 
+    def generate_pypi_config(self, config=None):
+        if config:
+            self.pypi_config = config
+        else:   # setup defaults
+
+            self.pypi_config = {
+                'pypirc': {
+                    'servers': {
+                        'testpypi': {
+                            'repository': 'https://test.pypi.org/legacy/',
+                            'username': os.environ['PYPI_USERNAME'],
+                            'password': os.environ['PYPI_PASSWORD'],
+                        },
+                        'pypi': {
+                            'username': os.environ['PYPI_USERNAME'],
+                            'password': os.environ['PYPI_PASSWORD'],
+                        },
+                    },
+                },
+            }
+
+            if os.getenv('PYPI_REPOSITORY'):
+                pieces = os.environ['PYPI_REPOSITORY'].split('://')
+                protocol = pieces[0]
+                domain = pieces[1]
+
+                url = '%s://%s:%s@%s' % (protocol, os.environ['PYPI_USERNAME'], os.environ['PYPI_PASSWORD'], domain)
+                self.pypi_config['pip.conf'] = {
+                    'entries': [{
+                        'scope': 'global',
+                        'args': {
+                            'extra-index-url': url,
+                        },
+                    }],
+                }
+        if 'pypirc' in self.pypi_config:
+            self.generate_pypirc()
+        if 'pip.conf' in self.pypi_config:
+            self.generate_pip_conf()
+
     def generate_pypirc(self, path='%s/.pypirc' % os.environ['HOME']):
         print('generating .pypirc at %s' % path)
+        pypirc_config = self.pypi_config['pypirc']
+
         with open(path, 'w') as pypirc:
             pypirc.write('[distutils]\n')
             pypirc.write('index-servers =\n')
-            for server, config in self.repository_config['servers'].items():
+            for server, config in pypirc_config['servers'].items():
                 pypirc.write('    %s\n' % server)
             pypirc.write('\n')
 
-            for server, config in self.repository_config['servers'].items():
+            for server, config in pypirc_config['servers'].items():
                 pypirc.write('[%s]\n' % server)
                 for field in 'repository username password'.split():
                     if field in config:
@@ -61,6 +103,19 @@ class Service(BaseService):
                 pypirc.write('\n')
 
         print('.pypirc written to %s' % path)
+
+    def generate_pip_conf(self, path='%s/.pip/pip.conf' % os.environ['HOME']):
+        print('generating pip.conf at %s' % path)
+        pip_conf_config = self.pypi_config['pip.conf']
+
+        with open(path, 'w') as pipconf:
+            for config in pip_conf_config['entries']:
+                pipconf.write('[%s]\n' % config['scope'])
+                for key, value in config['args'].items():
+                    pipconf.write('%s = %s\n' % (key, value))
+                pipconf.write('\n')
+
+        print('pip.conf written to %s' % path)
 
     def upload(self, server='pypi', path='dist/*'):
         self.run('twine upload %s -r %s' % (path, server))
