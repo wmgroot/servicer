@@ -6,7 +6,7 @@ def read(fname):
 
 setup(
     name = "servicer",
-    version = "0.3.6",
+    version = "0.3.7",
     author = "Matt Groot",
     author_email = "",
     description = ("CI/CD Automation Framework"),

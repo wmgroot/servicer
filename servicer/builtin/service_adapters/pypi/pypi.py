@@ -88,6 +88,7 @@ class Service(BaseService):
         print('generating .pypirc at %s' % path)
         pypirc_config = self.pypi_config['pypirc']
 
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'w') as pypirc:
             pypirc.write('[distutils]\n')
             pypirc.write('index-servers =\n')
@@ -108,6 +109,7 @@ class Service(BaseService):
         print('generating pip.conf at %s' % path)
         pip_conf_config = self.pypi_config['pip.conf']
 
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'w') as pipconf:
             for config in pip_conf_config['entries']:
                 pipconf.write('[%s]\n' % config['scope'])
