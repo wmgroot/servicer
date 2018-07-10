@@ -28,24 +28,6 @@ class Service(BaseService):
 
     def generate_pypi_config(self, config=None):
         if config:
-            self.repository_config = config
-        else:
-            self.repository_config = {
-                'servers': {
-                    'testpypi': {
-                        'repository': 'https://test.pypi.org/legacy/',
-                        'username': os.environ['PYPI_USERNAME'],
-                        'password': os.environ['PYPI_PASSWORD'],
-                    },
-                    'pypi': {
-                        'username': os.environ['PYPI_USERNAME'],
-                        'password': os.environ['PYPI_PASSWORD'],
-                    },
-                },
-            }
-
-    def generate_pypi_config(self, config=None):
-        if config:
             self.pypi_config = config
         else:   # setup defaults
 
@@ -121,6 +103,34 @@ class Service(BaseService):
 
     def upload(self, server='pypi', path='dist/*'):
         self.run('twine upload %s -r %s' % (path, server))
+
+    def if_package_versions_exist(self, package_directory=None, action=None):
+        regex = re.compile('(.+)-(\d+\.\d+\.\d+)\..+')
+        packages = {}
+
+        for f in os.listdir(package_directory):
+            if os.path.isfile(os.path.join(package_directory, f)):
+                match = regex.search(f)
+                package_name = match.group(1)
+                version = match.group(2)
+
+                if not package_name in packages:
+                    packages[package_name] = []
+                packages[package_name].append(version)
+
+        print('found these packages at (%s): %s' % (package_directory, packages))
+
+        existing_packages = []
+        for package, versions in packages.items():
+            existing_versions = self.get_versions(package_name=package)
+            intersection = set.intersection(set(existing_versions), set(versions))
+            if bool(intersection):
+                existing_packages.extend(['%s-%s' % (package, i) for i in intersection])
+
+        if existing_packages and action:
+            if action == 'error':
+                print(existing_packages)
+                raise ValueError('Package already exists! %s-%s' % (package_name, version))
 
     def if_package_version_exists(self, package_name=None, version=None, action=None):
         print('checking for %s-%s...' % (package_name, version))
