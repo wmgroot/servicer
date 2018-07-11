@@ -92,6 +92,7 @@ class Service(BaseService):
         response = requests.get(url, auth=HTTPBasicAuth(self.username, self.password), stream=True)
         response.raise_for_status()
 
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
         with open(local_path, 'wb') as handle:
             for block in response.iter_content(1024):
                 handle.write(block)
