@@ -3,6 +3,10 @@ ci:
     - circleci
   image: circleci/python:3.6.4
 
+git:
+  ignore_paths:
+    - '*README.md'
+
 providers:
   pypi:
     libraries:
@@ -13,11 +17,14 @@ services:
     provider: pypi
     service_type: pypi
 
+    git:
+      watch_paths:
+        - servicer/*
+
     config:
       steps:
         - type: setup_py
           args:
             command: sdist
-        - type: load_repository_config
-        - type: generate_pypirc
+        - type: generate_pypi_config
         - type: upload
