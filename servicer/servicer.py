@@ -12,25 +12,26 @@ from .run import run
 from .git import Git
 
 class Servicer():
-    def __init__(self):
+    def __init__(self, args=None):
         self.run = run
         self.git = Git(hide_output=('DEBUG' not in os.environ))
 
-        args = self.load_arguments()
+        if args == None:
+            args = vars(self.load_arguments())
 
-        args_dict = vars(args)
-        self.load_environment(args_dict)
-        self.config = self.load_config(args_dict)
+        self.load_environment(args)
+        self.config = self.load_config(args)
 
         self.normalize_ci_environment()
         self.services = self.load_service_modules()
         self.service_order = self.order_services(self.services)
 
-        if self.config['args']['generate_ci']:
+        if 'generate_ci' in self.config['args'] and self.config['args']['generate_ci']:
             generate_ci_config(config=config, path='.')
             sys.exit(0)
 
-        self.config['args']['step'] = self.config['args']['step'].split(',')
+        if 'step' in self.config['args']:
+            self.config['args']['step'] = self.config['args']['step'].split(',')
 
     def load_arguments(self):
         parser = argparse.ArgumentParser(description='Process deployment options.')
@@ -42,6 +43,9 @@ class Servicer():
         return parser.parse_args()
 
     def load_environment(self, args):
+        if 'servicer_config_path' not in args:
+            return
+
         env_file = '%s/.env.yaml' % args['servicer_config_path']
 
         print('checking for (.env.yaml) at (%s)' % env_file)
@@ -56,19 +60,22 @@ class Servicer():
             print()
 
     def load_config(self, args):
-        services_config_file = '%s/%s' % (args['servicer_config_path'], args['services_file'])
-        print(f'loading services config from ({services_config_file})')
         services_config = {}
-        self.load_extended_config(config_path=services_config_file, config=services_config)
 
-        services_config['config_path'] = args['servicer_config_path']
+        if 'servicer_config_path' in args and 'services_file' in args:
+            services_config_file = '%s/%s' % (args['servicer_config_path'], args['services_file'])
+            print(f'loading services config from ({services_config_file})')
+            self.load_extended_config(config_path=services_config_file, config=services_config)
+
+            services_config['config_path'] = args['servicer_config_path']
+
         services_config['module_path'] = globals()['__file__'].replace('/servicer.py', '')
         services_config['args'] = args
 
         if 'git' not in services_config:
             services_config['git'] = {}
         if 'enabled' not in services_config['git']:
-            services_config['git']['enabled'] = True
+            services_config['git']['enabled'] = False
         if 'default-branch' not in services_config['git']:
             services_config['git']['default-branch'] = 'master'
         if 'ignore-unchanged' not in services_config['git']:
@@ -108,6 +115,9 @@ class Servicer():
         return merge_to
 
     def normalize_ci_environment(self):
+        if 'ci' not in self.config:
+            return
+
         self.print_title('normalizing CI environment')
 
         self.config['ci']['adapters'] = {}
@@ -134,6 +144,7 @@ class Servicer():
         print()
         self.service_environment = os.getenv('SERVICE_ENVIRONMENT') or self.get_service_environment(os.environ['BRANCH'])
 
+        print('branch: %s' % os.getenv('BRANCH'))
         print('service environment: %s' % self.service_environment)
         if self.service_environment:
             os.environ['SERVICE_ENVIRONMENT'] = self.service_environment
@@ -142,12 +153,12 @@ class Servicer():
         self.print_title('loading service modules')
 
         services = {}
-        if self.config['args']['service']:
+        if 'service' in self.config['args'] and self.config['args']['service']:
             service_names = self.config['args']['service'].split(',')
             for name, service in self.config['services'].items():
                 if name in service_names:
                     services[name] = service
-        else:
+        elif 'services' in self.config:
             services = self.config['services']
 
         self.ignore_unchanged_services(services)
@@ -190,6 +201,8 @@ class Servicer():
             return
 
         git_ref = self.config['git']['default-branch']
+        if not git_ref.startswith('origin/'):
+            git_ref = 'origin/%s' % git_ref
 
         if 'BRANCH' in os.environ:
             sanitized_tag = 'servicer-%s' % self.git.sanitize_tag(os.environ['BRANCH'])
@@ -358,21 +371,40 @@ class Servicer():
                             adapter.up()
 
     def get_service_environment(self, branch):
-        print('branch: %s' % branch)
-        service_environment = None
+        mappings = None
+        if 'environment' in self.config and 'mappings' in self.config['environment']:
+            mappings = self.config['environment']['mappings']
+        else:
+            mappings = [
+                { 'branch': 'master', 'environment': 'production' },
+                { 'branch': 'develop' },
+                { 'branch': 'env-*' },
+            ]
 
-        if branch == 'master':
-            service_environment = 'production'
-        elif branch == 'develop':
-            service_environment = 'develop'
-        elif branch.startswith('env-'):
-            service_environment = branch
+        service_environment = self.map_service_environment(branch, mappings)
 
         if service_environment:
             for ch in ['\\', '/', '_']:
                 if ch in service_environment:
                     service_environment = service_environment.replace(ch, '-')
             return service_environment
+
+    def map_service_environment(self, branch, mappings=[]):
+        for m in mappings:
+            if 'branch' in m:
+                if m['branch'].startswith('/') and m['branch'].endswith('/'):
+                    regex = m['branch'][1:-1]
+                else:
+                    regex = m['branch'].replace('*', '.*')
+
+                result = re.match(regex, branch)
+                if result:
+                    return m.get('environment', branch)
+            elif 'tag' in m:
+                # TODO: support tag mapping
+                pass
+
+        return None
 
     def up(self):
         for service_name in self.service_order:
