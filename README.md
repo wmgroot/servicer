@@ -116,3 +116,23 @@ Servicer provides default Service Adapters for your convenience. Please explore 
 In order to standardize the environment Servicer runs in, a CI Adapter is used. Each CIAdapter is a python class that populates an instance variable called `env_map`, which contains key value pairs mapping environment variable names to their standardized Servicer equivalents.
 
 Servicer provides default CI Adapters for your convenience. Please explore the `builtin/ci_adapters` directory to see what's available for each CI provider. In order to customize servicer to your needs, you can create your own CI Adapters in your project. By default, servicer will prefer CI Adapters found in the `.servicer/ci_adapters` directory of your project.
+
+## Selective Builds ##
+For each service, you can optionally specify paths in your project that should trigger servicer to build, test, or deploy that service. Use `watch_paths` and `ignore_paths` to specify which files to match. Supported formats are simple text with `*` as a wildcard, or full regexes in the format `/.*/`. If no `watch_paths` or `ignore_paths` are provided, the service will be built every time.
+
+For example, this pypi service will only build, test, or deploy when a file inside project folder `servicer` is changed.
+However, if `servicer/README.md` changes, the pypi service will still not build, test, or deploy, because `*README.md` is ignored at the project level.
+```
+git:
+  ignore_paths:
+    - *README.md
+
+services:
+  pypi:
+    provider: pypi
+    service_type: pypi
+
+    git:
+      watch_paths:
+        - servicer/*
+```

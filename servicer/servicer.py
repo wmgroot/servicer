@@ -4,15 +4,19 @@ import importlib
 import json
 import argparse
 import yaml
+import re
 
 from .generate_ci_config import generate_ci_config
 from .topological_order import toposort2
-from .builtin.service_adapters.base_service import BaseService
+from .run import run
+from .git import diff, tag, list_tags
 
 class Servicer():
     def __init__(self):
-        self.service = BaseService()
-        self.run = self.service.run
+        self.run = run
+        self.diff = diff
+        self.tag = tag
+        self.list_tags = list_tags
 
         args = self.load_arguments()
 
@@ -62,6 +66,13 @@ class Servicer():
         services_config['config_path'] = args['servicer_config_path']
         services_config['module_path'] = globals()['__file__'].replace('/servicer.py', '')
         services_config['args'] = args
+
+        if 'git' not in services_config:
+            services_config['git'] = {}
+        if 'default-branch' not in services_config['git']:
+            services_config['git']['default-branch'] = 'master'
+        if 'ignore-unchanged' not in services_config['git']:
+            services_config['git']['ignore-unchanged'] = True
 
         print('Services Config:')
         print(json.dumps(services_config, indent=4, sort_keys=True))
@@ -134,6 +145,8 @@ class Servicer():
         else:
             services = self.config['services']
 
+        self.ignore_unchanged_services(services)
+
         for service_name, service in services.items():
             self.initialize_provider(service['provider'], service)
 
@@ -164,6 +177,78 @@ class Servicer():
                 service['module'] = module
 
         return services
+
+    def ignore_unchanged_services(self, services):
+        if not self.config['git']['ignore-unchanged']:
+            return
+
+        commitish = self.config['git']['default-branch']
+        diff_files = self.diff(a=commitish)
+
+        # TODO: think through what top level 'watch_paths' means
+        if 'ignore_paths' in self.config['git']:
+            regexes = [self.sanitize_regex(matcher) for matcher in self.config['git']['ignore_paths']]
+            matched_files, diff_files = self.match_regexes(diff_files, regexes)
+
+        ignored_services = []
+        for service_name, service in services.items():
+            service_changed_files = diff_files
+
+            if 'git' in service:
+                if 'watch_paths' in service['git']:
+                    watch_regexes = [self.sanitize_regex(matcher) for matcher in service['git']['watch_paths']]
+
+                    if os.getenv('DEBUG'):
+                        print('\nService: %s' % service_name)
+                        print('Matchers:')
+
+                    service_changed_files, _ = self.match_regexes(diff_files, watch_regexes)
+
+                if 'ignore_paths' in service['git']:
+                    ignore_regexes = [self.sanitize_regex(matcher) for matcher in service['git']['ignore_paths']]
+                    _, service_changed_files = self.match_regexes(service_changed_files, ignore_regexes)
+
+                if len(service_changed_files) > 0:
+                    if os.getenv('DEBUG'):
+                        print('\nChanged Files:')
+                        print('\n'.join(service_changed_files))
+                else:
+                    ignored_services.append(service_name)
+
+        print('\nIgnored Services:')
+        for sn in ignored_services:
+            print(sn)
+            services.pop(sn)
+
+        print('\nChanged Services:')
+        print('\n'.join(services.keys()))
+
+    def sanitize_regex(self, matcher):
+        if matcher.startswith('/') and matcher.endswith('/'):
+            return matcher[1:-1]
+
+        return matcher.replace('*', '.*')
+
+    # takes a list of strings, and returns a tuple of strings that match and do not match
+    def match_regexes(self, strings, regexes):
+        if not isinstance(regexes, list):
+            regexes = [regexes]
+
+        matches = []
+        unmatches = []
+        for s in strings:
+            for regex in regexes:
+                result = re.match(regex, s)
+
+                if os.getenv('DEBUG'):
+                    print('%s ~= %s -> %s' % (regex, s, result))
+
+                if result:
+                    matches.append(s)
+                else:
+                    unmatches.append(s)
+
+        return matches, unmatches
 
     def initialize_provider(self, provider_name, service):
         provider = self.config['providers'].get(provider_name)
@@ -201,7 +286,7 @@ class Servicer():
                 if 'name' in mp:
                     if os.getenv('DEBUG'):
                         print('importing: %s:%s' % (mp['name'], mp['package']))
-                    # module = importlib.import_module(mp['name'], mp['package'])
+
                     module = importlib.import_module(mp['name'])
                     return module
                 else:
@@ -248,15 +333,6 @@ class Servicer():
                             print(json.dumps(config, indent=4, sort_keys=True))
                             adapter = service['module'].Service(config)
                             adapter.up()
-                            # else:
-                            #     config = service.get('config', {})
-                            #     adapter = service['module'].Service(config)
-                            #     if hasattr(adapter, step):
-                            #         getattr(adapter, step)()
-
-                    # if service.get('service_adapter') and hasattr(service['service_adapter'], step):
-                    #     module = getattr(service['service_adapter'], step)
-                    #     getattr(service['service_adapter'], step)()
 
     def get_service_environment(self, branch):
         print('branch: %s' % branch)

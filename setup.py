@@ -5,29 +5,30 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 setup(
-    name = "servicer",
-    version = "0.3.9",
-    author = "Matt Groot",
-    author_email = "",
-    description = ("CI/CD Automation Framework"),
-    license = "BSD3",
-    keywords = "ci cd automation environment service",
-    url = "https://github.com/wmgroot/servicer",
-    packages = find_packages(),
-    include_package_data=True,
-    long_description = read('README.md'),
+    author = 'Matt Groot',
+    author_email = '',
     classifiers = [
-        "Development Status :: 3 - Alpha",
-        "Topic :: Utilities",
-        "License :: OSI Approved :: BSD License",
+        'Development Status :: 3 - Alpha',
+        'Topic :: Utilities',
+        'License :: OSI Approved :: BSD License',
     ],
-    install_requires = [
-        'PyYAML==3.12',
-        'requests==2.18.4',
-    ],
+    description = ('CI/CD Automation Framework'),
     entry_points = {
         'console_scripts': [
             'servicer = servicer.servicer:main',
         ],
     },
+    include_package_data = True,
+    install_requires = [
+        'PyYAML==3.12',
+        'requests==2.18.4',
+    ],
+    keywords = 'ci cd automation environment service',
+    license = 'BSD3',
+    long_description = read('README.md'),
+    name = 'servicer',
+    packages = find_packages(),
+    python_requires = '>=3.6',
+    url = 'https://github.com/wmgroot/servicer',
+    version = '0.4.0',
 )

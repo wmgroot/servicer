@@ -4,6 +4,9 @@ from functools import reduce
 # expects a dict containing dependency sets
 # http://rosettacode.org/wiki/Topological_sort#Python
 def toposort2(data):
+    if not data:
+        return []
+
     for k, v in data.items():
         v.discard(k) # Ignore self dependencies
 
