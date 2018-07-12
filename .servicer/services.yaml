@@ -4,6 +4,8 @@ ci:
   image: circleci/python:3.6.4
 
 git:
+  enabled: true
+  default-branch: origin/master
   ignore_paths:
     - '*README.md'
 
@@ -28,3 +30,15 @@ services:
             command: sdist
         - type: generate_pypi_config
         - type: upload
+
+    steps:
+      test:
+        commands:
+          - python -m unittest discover -b
+
+environment:
+  mappings:
+    - branch: master
+      environment: production
+    - branch: develop
+    - branch: env-*

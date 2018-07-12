@@ -4,8 +4,10 @@ from functools import reduce
 # expects a dict containing dependency sets
 # http://rosettacode.org/wiki/Topological_sort#Python
 def toposort2(data):
+    result = []
+
     if not data:
-        return []
+        return result
 
     for k, v in data.items():
         v.discard(k) # Ignore self dependencies
@@ -15,7 +17,6 @@ def toposort2(data):
     data.update({item: set() for item in extra_items_in_dependencies})
 
     # perform the topological ordering
-    result = []
     while True:
         ordered = set(item for item, dependency in data.items() if not dependency)
         if not ordered:
