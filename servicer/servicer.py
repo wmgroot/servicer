@@ -148,7 +148,7 @@ class Servicer():
         self.ignore_unchanged_services(services)
 
         for service_name, service in services.items():
-            if 'config' not in service
+            if 'config' not in service:
                 service['config'] = {}
 
             self.initialize_provider(service['provider'], service)
