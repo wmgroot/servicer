@@ -148,6 +148,9 @@ class Servicer():
         self.ignore_unchanged_services(services)
 
         for service_name, service in services.items():
+            if 'config' not in service
+                service['config'] = {}
+
             self.initialize_provider(service['provider'], service)
 
             service['name'] = service_name
@@ -173,7 +176,6 @@ class Servicer():
             if isinstance(module, str):
                 service['shell_script'] = service['module']
             else:
-                config = service.get('config', {})
                 service['module'] = module
 
         return services
