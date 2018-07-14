@@ -9,14 +9,12 @@ import re
 from .generate_ci_config import generate_ci_config
 from .topological_order import toposort2
 from .run import run
-from .git import diff, tag, list_tags
+from .git import Git
 
 class Servicer():
     def __init__(self):
         self.run = run
-        self.diff = diff
-        self.tag = tag
-        self.list_tags = list_tags
+        self.git = Git(hide_output=('DEBUG' not in os.environ))
 
         args = self.load_arguments()
 
@@ -69,6 +67,8 @@ class Servicer():
 
         if 'git' not in services_config:
             services_config['git'] = {}
+        if 'enabled' not in services_config['git']:
+            services_config['git']['enabled'] = True
         if 'default-branch' not in services_config['git']:
             services_config['git']['default-branch'] = 'master'
         if 'ignore-unchanged' not in services_config['git']:
@@ -181,11 +181,27 @@ class Servicer():
         return services
 
     def ignore_unchanged_services(self, services):
-        if not self.config['git']['ignore-unchanged']:
+        if not (self.config['git']['enabled'] and self.config['git']['ignore-unchanged']):
             return
 
-        commitish = self.config['git']['default-branch']
-        diff_files = self.diff(a=commitish)
+        git_ref = self.config['git']['default-branch']
+
+        if 'BRANCH' in os.environ:
+            sanitized_tag = 'servicer-%s' % self.git.sanitize_tag(os.environ['BRANCH'])
+            tags = [t for t in self.git.list_tags() if t.startswith(sanitized_tag)]
+
+            if os.getenv('DEBUG'):
+                print('branch tag: %s' % sanitized_tag)
+                print('matching tags:')
+                print('\n'.join(tags))
+
+            if len(tags) > 0:
+                git_ref = tags[-1]
+
+        print('\nGit Ref: %s' % git_ref)
+        diff_files = self.git.files_changed_ahead_of_ref(git_ref)
+        print('\nChanged Files:')
+        print('\n'.join(diff_files))
 
         # TODO: think through what top level 'watch_paths' means
         if 'ignore_paths' in self.config['git']:
