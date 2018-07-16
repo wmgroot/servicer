@@ -74,6 +74,11 @@ class Servicer():
         if 'ignore-unchanged' not in services_config['git']:
             services_config['git']['ignore-unchanged'] = True
 
+        if 'environment' in services_config:
+            if 'variables' in services_config['environment']:
+                for key, value in services_config['environment']['variables'].items():
+                    os.environ[key] = value
+
         print('Services Config:')
         print(json.dumps(services_config, indent=4, sort_keys=True))
 
@@ -280,7 +285,7 @@ class Servicer():
                 self.run('%s/install-google-cloud-sdk.sh' % self.config['module_path'])
 
             if 'libraries' in provider:
-                self.run('pip install %s' % ' '.join(provider['libraries']), shell=True)
+                self.run('%s install %s' % (os.getenv('PIP_EXE', 'pip'), ' '.join(provider['libraries'])), shell=True)
             if 'auth_script' in provider:
                 self.print_title('%s authentication' % provider_name)
                 auth_script_paths = [

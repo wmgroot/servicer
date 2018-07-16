@@ -9,6 +9,8 @@ from ..base_service import BaseService
 class Service(BaseService):
     def __init__(self, config):
         super().__init__(config)
+        self.pypirc_path = os.getenv('PYPIRC_PATH', '%s/.pypirc' % os.environ['HOME'])
+        self.pip_conf_path = os.getenv('PIP_CONF_PATH', '%s/.pip/pip.conf' % os.environ['HOME'])
 
     def up(self):
         super().up()
@@ -16,21 +18,17 @@ class Service(BaseService):
         if 'steps' in self.config:
             self.run_steps(self.config['steps'])
 
-    def down(self):
-        super().up()
-
     def run_steps(self, steps):
         for step in steps:
             getattr(self, step['type'])(**step.get('args', {}))
 
     def setup_py(self, command):
-        self.run('python setup.py %s' % command)
+        self.run('%s setup.py %s' % os.getenv('PYTHON_EXE', 'python'), command)
 
     def generate_pypi_config(self, config=None):
         if config:
             self.pypi_config = config
         else:   # setup defaults
-
             self.pypi_config = {
                 'pypirc': {
                     'servers': {
@@ -66,12 +64,15 @@ class Service(BaseService):
         if 'pip.conf' in self.pypi_config:
             self.generate_pip_conf()
 
-    def generate_pypirc(self, path='%s/.pypirc' % os.environ['HOME']):
-        print('generating .pypirc at %s' % path)
+    def generate_pypirc(self):
         pypirc_config = self.pypi_config['pypirc']
 
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w') as pypirc:
+        if 'path' in pypirc_config:
+            self.pypirc_path = pypirc_config.pop('path')
+
+        print('generating .pypirc at %s' % self.pypirc_path)
+        os.makedirs(os.path.dirname(self.pypirc_path), exist_ok=True)
+        with open(self.pypirc_path, 'w') as pypirc:
             pypirc.write('[distutils]\n')
             pypirc.write('index-servers =\n')
             for server, config in pypirc_config['servers'].items():
@@ -85,24 +86,27 @@ class Service(BaseService):
                         pypirc.write('%s: %s\n' % (field, config[field]))
                 pypirc.write('\n')
 
-        print('.pypirc written to %s' % path)
+        print('.pypirc written to %s' % self.pypirc_path)
 
-    def generate_pip_conf(self, path='%s/.pip/pip.conf' % os.environ['HOME']):
-        print('generating pip.conf at %s' % path)
+    def generate_pip_conf(self):
         pip_conf_config = self.pypi_config['pip.conf']
 
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w') as pipconf:
+        if 'path' in pip_conf_config:
+            self.pip_conf_path = pip_conf_config.pop('path')
+
+        print('generating pip.conf at %s' % self.pip_conf_path)
+        os.makedirs(os.path.dirname(self.pip_conf_path), exist_ok=True)
+        with open(self.pip_conf_path, 'w') as pipconf:
             for config in pip_conf_config['entries']:
                 pipconf.write('[%s]\n' % config['scope'])
                 for key, value in config['args'].items():
                     pipconf.write('%s = %s\n' % (key, value))
                 pipconf.write('\n')
 
-        print('pip.conf written to %s' % path)
+        print('pip.conf written to %s' % self.pip_conf_path)
 
     def upload(self, server='pypi', path='dist/*'):
-        self.run('twine upload %s -r %s' % (path, server))
+        self.run('twine upload --config-file=%s %s -r %s' % (self.pypirc_path, path, server))
 
     def if_package_versions_exist(self, package_directory=None, action=None):
         regex = re.compile('(.+)-(\d+\.\d+\.\d+)\..+')
@@ -143,7 +147,7 @@ class Service(BaseService):
         return exists
 
     def get_versions(self, package_name=None):
-        result = self.run('pip install %s==' % package_name, check=False, hide_output=True)
+        result = self.pip('install %s==' % package_name)
         regex = re.compile('\(from versions: (.*)\)')
         match = regex.search(result['stdout'])
 
@@ -155,3 +159,7 @@ class Service(BaseService):
         print('versions: %s' % versions)
 
         return versions
+
+    def pip(self, command, hide_output=True):
+        result = self.run('PIP_CONFIG_FILE=%s %s %s' % (self.pip_conf_path, os.getenv('PIP_EXE', 'pip'), command), check=False, hide_output=hide_output)
+        return result
