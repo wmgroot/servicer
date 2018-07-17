@@ -10,6 +10,7 @@ from .generate_ci_config import generate_ci_config
 from .topological_order import toposort2
 from .run import run
 from .git import Git
+from .config_loader import ConfigLoader
 
 class Servicer():
     def __init__(self, args=None):
@@ -20,9 +21,10 @@ class Servicer():
             args = vars(self.load_arguments())
 
         self.load_environment(args)
-        self.config = self.load_config(args)
+        self.config = ConfigLoader(args).load_config()
 
         self.normalize_ci_environment()
+
         self.services = self.load_service_modules()
         self.service_order = self.order_services(self.services)
 
@@ -58,61 +60,6 @@ class Servicer():
                 os.environ[key] = value
                 print(key)
             print()
-
-    def load_config(self, args):
-        services_config = {}
-
-        if 'servicer_config_path' in args and 'services_file' in args:
-            services_config_file = '%s/%s' % (args['servicer_config_path'], args['services_file'])
-            print(f'loading services config from ({services_config_file})')
-            self.load_extended_config(config_path=services_config_file, config=services_config)
-
-            services_config['config_path'] = args['servicer_config_path']
-
-        services_config['module_path'] = globals()['__file__'].replace('/servicer.py', '')
-        services_config['args'] = args
-
-        if 'git' not in services_config:
-            services_config['git'] = {}
-        if 'enabled' not in services_config['git']:
-            services_config['git']['enabled'] = False
-        if 'default-branch' not in services_config['git']:
-            services_config['git']['default-branch'] = 'master'
-        if 'ignore-unchanged' not in services_config['git']:
-            services_config['git']['ignore-unchanged'] = True
-
-        if 'environment' in services_config:
-            if 'variables' in services_config['environment']:
-                for key, value in services_config['environment']['variables'].items():
-                    os.environ[key] = value
-
-        print('Services Config:')
-        print(json.dumps(services_config, indent=4, sort_keys=True))
-
-        return services_config
-
-    # recursively load configs, overwriting base config values
-    def load_extended_config(self, config_path=None, config=None):
-        merge_config = yaml.load(open(config_path))
-
-        if 'extends' in merge_config:
-            config_path_pieces = config_path.split('/')
-            inherit_path = '%s/%s' % ('/'.join(config_path_pieces[:-1]), merge_config['extends'])
-            self.load_extended_config(config_path=inherit_path, config=config)
-            print('Inheriting: %s' % inherit_path)
-
-        self.merge_config(config, merge_config)
-
-    def merge_config(self, merge_to, merge_from):
-        for key, value in merge_from.items():
-            if isinstance(value, dict):
-                # get node or create one
-                node = merge_to.setdefault(key, {})
-                self.merge_config(node, value)
-            else:
-                merge_to[key] = value
-
-        return merge_to
 
     def normalize_ci_environment(self):
         if 'ci' not in self.config:
@@ -197,7 +144,7 @@ class Servicer():
         return services
 
     def ignore_unchanged_services(self, services):
-        if not (self.config['git']['enabled'] and self.config['git']['ignore-unchanged']):
+        if not 'git' in self.config or not self.config['git']['enabled'] or not self.config['git']['ignore-unchanged']:
             return
 
         git_ref = self.config['git']['default-branch']
