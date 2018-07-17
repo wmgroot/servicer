@@ -65,6 +65,93 @@ services:
           - docker-compose -f docker-compose-test.yml up --abort-on-container-exit
 ```
 
+### Extends ###
+The key `extends` can be used to inherit values from another servicer config file.
+Keys and values between the two config files will be merged, with values from the extending file taking precedence.
+
+```
+# base.yaml
+
+ci:
+  providers:
+    - bitbucket
+  image: python:3.6.4
+
+providers:
+  aws:
+    libraries:
+      - awscli==1.15.49
+      - boto3==1.7.48
+  gcloud:
+    auth_script: auth/gcloud.sh
+    libraries:
+      - google-api-python-client==1.6.5
+```
+```
+# services.yaml
+
+extends: base.yaml
+
+services:
+  postgres:
+    provider: aws
+    service_type: rds_instance
+
+  api-django:
+    docker: true
+    depends_on:
+      - postgres
+    provider: gcloud
+    service_type: kube_cluster
+```
+
+### Includes ###
+The key `includes` can also be used to inherit values from another servicer config file.
+
+```
+# kube-service.yaml
+
+docker: true
+depends_on:
+  - postgres
+provider: gcloud
+service_type: kube_cluster
+```
+```
+# services.yaml
+
+extends: base.yaml
+
+services:
+  api-django:
+    includes: kube-service.yaml
+```
+
+An optional `params` key may be provided to provide interpolation tokens. This is equivalent to the example above.
+
+```
+# kube-service.yaml
+
+docker: true
+depends_on:
+  - ${db}
+provider: ${provider}
+service_type: kube_cluster
+```
+```
+# services.yaml
+
+extends: base.yaml
+
+services:
+  api-django:
+    includes:
+      path: kube-service.yaml
+      params:
+        db: postres
+        provider: gcloud
+```
+
 ## Environment ##
 The framework requires several environment variables to be configured which control the parameters of each service. Some of these environment variables will be automatically pulled from your CI environment, and converted using a CI Adapter. The remaining variables may be specific to each service adapter, and will need to be configured in your CI environment.
 

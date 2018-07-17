@@ -1,1 +1,2 @@
 global-include *.sh
+global-include *.yaml

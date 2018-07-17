@@ -8,6 +8,8 @@ git:
   default-branch: origin/master
   ignore_paths:
     - '*README.md'
+    - '*LICENSE'
+    - '*.gitignore'
 
 providers:
   pypi:
@@ -18,10 +20,6 @@ services:
   pypi:
     provider: pypi
     service_type: pypi
-
-    git:
-      watch_paths:
-        - servicer/*
 
     config:
       steps:
@@ -35,10 +33,3 @@ services:
       test:
         commands:
           - python -m unittest discover -b
-
-environment:
-  mappings:
-    - branch: master
-      environment: production
-    - branch: develop
-    - branch: env-*
