@@ -23,7 +23,7 @@ class Service(BaseService):
             getattr(self, step['type'])(**step.get('args', {}))
 
     def setup_py(self, command):
-        self.run('%s setup.py %s' % (os.getenv('PYTHON_EXE', 'python'), command)
+        self.run('%s setup.py %s' % (os.getenv('PYTHON_EXE', 'python'), command))
 
     def generate_pypi_config(self, config=None):
         if config:
