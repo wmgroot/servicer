@@ -1,0 +1,11 @@
+git:
+  enabled: false
+  default-branch: master
+  ignore-unchanged: true
+
+environment:
+  mappings:
+    - branch: master
+      environment: production
+    - branch: develop
+    - branch: env-*
