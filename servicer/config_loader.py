@@ -83,8 +83,7 @@ class ConfigLoader():
             self.load_extended_config(config_path=include_path, config=include_config)
 
             if params:
-                print(params)
-                interpolate_tokens(include_config, params)
+                interpolate_tokens(include_config, params, ignore_missing_key=True)
 
             self.merge_config(config, include_config)
 
