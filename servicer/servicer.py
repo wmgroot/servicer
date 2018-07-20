@@ -5,6 +5,7 @@ import json
 import argparse
 import yaml
 import re
+import copy
 
 from .generate_ci_config import generate_ci_config
 from .topological_order import toposort2
@@ -21,7 +22,8 @@ class Servicer():
             args = vars(self.load_arguments())
 
         self.load_environment(args)
-        self.config = ConfigLoader(args).load_config()
+        self.config_loader = ConfigLoader(args)
+        self.config = self.config_loader.load_config()
 
         self.normalize_ci_environment()
 
@@ -114,7 +116,7 @@ class Servicer():
             if 'config' not in service:
                 service['config'] = {}
 
-            self.initialize_provider(service['provider'], service)
+            self.try_initialize_provider(service['provider'], service)
 
             service['name'] = service_name
             service_modules = [
@@ -233,33 +235,65 @@ class Servicer():
 
         return matches, unmatches
 
-    def initialize_provider(self, provider_name, service):
+    def try_initialize_provider(self, provider_name, service):
         provider = self.config['providers'].get(provider_name)
-        if provider and self.service_environment and not provider.get('initialized'):
-            self.print_title('intializing provider: %s' % provider_name)
 
-            # TODO: account for this extra setup in the build image
-            if provider_name == 'gcloud' and os.getenv('CI'):
-                self.run('apt-get update', shell=True)
-                self.run('apt-get install apt-transport-https -y', shell=True)
-                self.run('%s/install-google-cloud-sdk.sh' % self.config['module_path'])
+        if provider == None:
+            return
 
-            if 'libraries' in provider:
-                self.run('%s install %s' % (os.getenv('PIP_EXE', 'pip'), ' '.join(provider['libraries'])), shell=True)
-            if 'auth_script' in provider:
-                self.print_title('%s authentication' % provider_name)
-                auth_script_paths = [
-                    { 'file_path': '%s/auth/%s.sh' % (self.config['config_path'], provider_name) },
-                    { 'file_path': '%s/builtin/auth/%s.sh' % (self.config['module_path'], provider_name) },
-                ]
-                auth_script_path = self.load_module_from_paths(auth_script_paths)
-                provider['auth_script_path'] = auth_script_path
-                self.run(auth_script_path, shell=True)
+        provider['name'] = provider_name
 
-            provider['initialized'] = True
+        should_initialize = self.service_environment and not provider.get('initialized')
+
+        provider_config = copy.deepcopy(provider)
+
+        if service and 'auth' in service:
+            self.config_loader.merge_config(provider_config, service['auth'])
+            should_initialize = True
+
+        if should_initialize:
+            self.initialize_provider(provider_config)
 
         if service:
-            service['config']['initialized_provider'] = provider
+            service['config']['initialized_provider'] = provider_config
+
+    def initialize_provider(self, provider):
+        self.print_title('intializing provider: %s' % provider['name'])
+
+        # TODO: remove this and account for this extra setup in the build image
+        # if provider_name == 'gcloud' and os.getenv('CI'):
+        #     self.run('apt-get update')
+        #     self.run('apt-get install apt-transport-https -y')
+        #     self.run('%s/install-google-cloud-sdk.sh' % self.config['module_path'])
+
+        if 'libraries' in provider and provider['libraries']:
+            self.run('%s install %s' % (os.getenv('PIP_EXE', 'pip'), ' '.join(provider['libraries'])))
+        if 'auth_script' in provider and provider['auth_script']:
+            print('authenticating with: %s' % provider['name'])
+            auth_script_paths = [
+                { 'file_path': '%s/auth/%s.sh' % (self.config['config_path'], provider['name']) },
+                { 'file_path': '%s/builtin/auth/%s.sh' % (self.config['module_path'], provider['name']) },
+            ]
+            auth_script_path = self.load_module_from_paths(auth_script_paths)
+            provider['auth_script_path'] = auth_script_path
+            self.run(auth_script_path)
+        if 'config' in provider and provider['config']:
+            auth_modules = [
+                {
+                    'name': 'auth_adapters.%s' % provider['name'],
+                    'package': 'auth_adapters',
+                    'file_path': '%s/auth_adapters/%s.py' % (self.config['config_path'], provider['name']),
+                },
+                {
+                    'name': 'servicer.builtin.auth_adapters.%s' % provider['name'],
+                    'package': 'servicer.builtin.auth_adapters',
+                    'file_path': '%s/builtin/auth_adapters/%s.py' % (self.config['module_path'], provider['name']),
+                },
+            ]
+            module = self.load_module_from_paths(auth_modules)
+            module.AuthAdapter(provider['config']).authenticate()
+
+        provider['initialized'] = True
 
     def load_module_from_paths(self, modules):
         for mp in modules:
@@ -308,7 +342,7 @@ class Servicer():
                         commands = service['steps'][step].get('commands')
                         if commands:
                             for c in commands:
-                                self.run(c, shell=True)
+                                self.run(c)
 
                         if 'module' in service and 'config' in service['steps'][step]:
                             config = service['steps'][step].get('config')
@@ -373,7 +407,7 @@ class Servicer():
             if results:
                 self.store_results(service, results)
         elif 'shell_script' in service:
-            self.run('%s up' % service['shell_script'], shell=True)
+            self.run('%s up' % service['shell_script'])
 
             # clunky way to retrieve results from shell scripts
             script_results_path = 'shell-script-results.yaml'
