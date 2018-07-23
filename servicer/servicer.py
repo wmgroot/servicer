@@ -26,9 +26,12 @@ class Servicer():
         self.config = self.config_loader.load_config()
 
         self.normalize_ci_environment()
+        self.git_init()
 
         self.services = self.load_service_modules()
+        print('services: %s' % self.services.keys())
         self.service_order = self.order_services(self.services)
+        print('services: %s' % self.service_order)
 
         if 'generate_ci' in self.config['args'] and self.config['args']['generate_ci']:
             generate_ci_config(config=config, path='.')
@@ -98,19 +101,38 @@ class Servicer():
         if self.service_environment:
             os.environ['SERVICE_ENVIRONMENT'] = self.service_environment
 
+    def git_init(self):
+        if not 'git' in self.config or not self.config['git']['enabled']:
+            return
+
+        if not self.config['git']['default-branch'].startswith('origin/'):
+            self.config['git']['default-branch'] = 'origin/%s' % self.config['git']['default-branch']
+
+        if 'config' in self.config['git']:
+            self.git.set_config(self.config['git']['config'])
+
+        if self.config['git']['ignore-servicer-commits']:
+            authors = self.git.authors_for_changes_ahead_of_ref(self.config['git']['default-branch'])
+            print('Commit authors: %s' % authors)
+            if authors == ['servicer']:
+                print('Only automated servicer changes were detected, skipping this build.')
+                sys.exit(0)
+
     def load_service_modules(self):
         self.print_title('loading service modules')
+
+        if 'services' in self.config:
+            for name, service in self.config['services'].items():
+                service['name'] = name
 
         services = {}
         if 'service' in self.config['args'] and self.config['args']['service']:
             service_names = self.config['args']['service'].split(',')
-            for name, service in self.config['services'].items():
-                if name in service_names:
-                    services[name] = service
+            for name in service_names:
+                services[name] = self.config['services'][name]
         elif 'services' in self.config:
             services = self.config['services']
-
-        self.ignore_unchanged_services(services)
+            self.ignore_unchanged_services(services)
 
         for service_name, service in services.items():
             if 'config' not in service:
@@ -149,10 +171,6 @@ class Servicer():
         if not 'git' in self.config or not self.config['git']['enabled'] or not self.config['git']['ignore-unchanged']:
             return
 
-        git_ref = self.config['git']['default-branch']
-        if not git_ref.startswith('origin/'):
-            git_ref = 'origin/%s' % git_ref
-
         if 'BRANCH' in os.environ:
             sanitized_tag = 'servicer-%s' % self.git.sanitize_tag(os.environ['BRANCH'])
             tags = [t for t in self.git.list_tags() if t.startswith(sanitized_tag)]
@@ -165,8 +183,8 @@ class Servicer():
             if len(tags) > 0:
                 git_ref = tags[-1]
 
-        print('\nGit Ref: %s' % git_ref)
-        diff_files = self.git.files_changed_ahead_of_ref(git_ref)
+        print('\nGit Ref: %s' % self.config['git']['default-branch'])
+        diff_files = self.git.files_changed_ahead_of_ref(self.config['git']['default-branch'])
         print('\nChanged Files:')
         print('\n'.join(diff_files))
 
@@ -392,7 +410,7 @@ class Servicer():
             print(service_name)
 
         for service_name in self.service_order:
-            self.up_service(self.services[service_name])
+            self.up_service(self.config['services'][service_name])
 
         self.print_title('deploy complete')
 
@@ -402,7 +420,7 @@ class Servicer():
         service['results'] = {}
 
         if 'module' in service:
-            adapter = service['module'].Service(service['config'])
+            adapter = service['module'].Service(config=service['config'])
             results = adapter.up()
             if results:
                 self.store_results(service, results)
