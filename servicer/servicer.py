@@ -108,8 +108,8 @@ class Servicer():
         if not self.config['git']['default-branch'].startswith('origin/'):
             self.config['git']['default-branch'] = 'origin/%s' % self.config['git']['default-branch']
 
-        if 'config' in self.config['git']:
-            self.git.set_config(self.config['git']['config'])
+        # if 'config' in self.config['git']:
+        #     self.git.set_config(self.config['git']['config'])
 
         if self.config['git']['ignore-servicer-commits']:
             authors = self.git.authors_for_changes_ahead_of_ref(self.config['git']['default-branch'])
