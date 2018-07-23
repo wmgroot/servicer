@@ -1,7 +1,10 @@
 git:
   enabled: false
+  config:
+    user.name: servicer
   default-branch: master
   ignore-unchanged: true
+  ignore-servicer-commits: true
 
 environment:
   mappings:
