@@ -278,12 +278,6 @@ class Servicer():
     def initialize_provider(self, provider):
         self.print_title('intializing provider: %s' % provider['name'])
 
-        # TODO: remove this and account for this extra setup in the build image
-        # if provider_name == 'gcloud' and os.getenv('CI'):
-        #     self.run('apt-get update')
-        #     self.run('apt-get install apt-transport-https -y')
-        #     self.run('%s/install-google-cloud-sdk.sh' % self.config['module_path'])
-
         if 'libraries' in provider and provider['libraries']:
             self.run('%s install %s' % (os.getenv('PIP_EXE', 'pip'), ' '.join(provider['libraries'])))
         if 'auth_script' in provider and provider['auth_script']:
@@ -368,6 +362,11 @@ class Servicer():
                             print(json.dumps(config, indent=4, sort_keys=True))
                             adapter = service['module'].Service(config)
                             adapter.up()
+
+                        post_commands = service['steps'][step].get('post_commands')
+                        if post_commands:
+                            for c in post_commands:
+                                self.run(c)
 
     def get_service_environment(self, branch):
         mappings = None
