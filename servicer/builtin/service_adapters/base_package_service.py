@@ -16,7 +16,7 @@ class BasePackageService(BaseService):
         self.package_version = self.package_version(self.config['version_file_path'])
 
         current_increment = 0
-        self.version_changed = False
+        version_changed = False
         while True:
             invalid_version = self.if_package_version_exists(package_name=self.package_name, version=self.package_version)
 
@@ -27,18 +27,17 @@ class BasePackageService(BaseService):
                 raise ValueError('Max package_version auto-increment reached! %s-%s' % (self.package_name, self.package_version))
 
             self.package_version = self.increment_version(self.package_version)
-            self.version_changed = True
+            version_changed = True
             current_increment += 1
 
         print('Automatic version decided: %s-%s' % (self.package_name, self.package_version))
 
-        if self.version_changed:
+        if version_changed:
             self.write_package_version(path=self.config['version_file_path'], version=self.package_version)
 
     def commit_and_push_changes(self):
-        if self.version_changed:
-            self.git.commit(add=self.config['version_file_path'], message='[servicer] Automated version change.')
-            self.git.push(branch=self.git.current_branch())
+        self.git.commit(add=self.config['version_file_path'], message='[servicer] Automated version change.')
+        self.git.push(branch=self.git.current_branch())
 
     def increment_version(self, version):
         new_version = [int(v) for v in version.split('.')]
