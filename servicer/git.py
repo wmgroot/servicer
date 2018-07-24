@@ -1,4 +1,6 @@
 import sys
+import os
+
 from .run import run
 
 class Git():
@@ -74,13 +76,12 @@ class Git():
         for a in add:
             self.run('git add %s' % a)
 
-        self.run('git commit -m "%s"' % message)
+        self.run('git diff-index --quiet HEAD || git commit -m "%s"' % message)
 
     def push(self, origin='origin', branch=None, protocol='ssh'):
         if protocol == 'ssh':
             self.run('git push %s %s' % (origin, branch))
         elif protocol == 'https':
-            print('userpass: %s:%s' % (os.environ['GIT_USERNAME'], os.environ['GIT_PASSWORD']))
             self.run('git push https://%s:%s@%s %s:%s' % (os.environ['GIT_USERNAME'], os.environ['GIT_PASSWORD'], os.environ['GIT_REPOSITORY'], branch, branch))
         else:
             raise ValueError('Invalid git push protocol: %s' % protocol)
