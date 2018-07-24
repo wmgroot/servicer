@@ -1,5 +1,6 @@
 import sys
 import os
+from urllib.parse import quote_plus
 
 from .run import run
 
@@ -82,7 +83,7 @@ class Git():
         if protocol == 'ssh':
             self.run('git push %s %s' % (origin, branch))
         elif protocol == 'https':
-            self.run('git push "https://%s:%s@%s" %s:%s' % (os.environ['GIT_USERNAME'], os.environ['GIT_PASSWORD'], os.environ['GIT_REPOSITORY'], branch, branch))
+            self.run('git push https://%s:%s@%s %s:%s' % (os.environ['GIT_USERNAME'], quote_plus(os.environ['GIT_PASSWORD']), os.environ['GIT_REPOSITORY'], branch, branch))
         else:
             raise ValueError('Invalid git push protocol: %s' % protocol)
 
