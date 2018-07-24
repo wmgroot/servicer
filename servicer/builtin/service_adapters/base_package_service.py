@@ -35,9 +35,9 @@ class BasePackageService(BaseService):
         if version_changed:
             self.write_package_version(path=self.config['version_file_path'], version=self.package_version)
 
-    def commit_and_push_changes(self):
+    def commit_and_push_changes(self, protocol='ssh'):
         self.git.commit(add=self.config['version_file_path'], message='[servicer] Automated version change.')
-        self.git.push(branch=self.git.current_branch())
+        self.git.push(branch=self.git.current_branch(), protocol=protocol)
 
     def increment_version(self, version):
         new_version = [int(v) for v in version.split('.')]

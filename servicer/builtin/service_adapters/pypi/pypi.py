@@ -158,8 +158,8 @@ class Service(BasePackageService):
         if match:
             versions.extend(match.group(1).split(', '))
 
-        print('package: %s' % package_name)
-        print('versions: %s' % versions)
+        print('existing package: %s' % package_name)
+        print('existing versions: %s' % versions)
 
         return versions
 

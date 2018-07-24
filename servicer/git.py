@@ -76,8 +76,14 @@ class Git():
 
         self.run('git commit -m "%s"' % message)
 
-    def push(self, origin='origin', branch=None):
-        self.run('git push %s %s' % (origin, branch))
+    def push(self, origin='origin', branch=None, protocol='ssh'):
+        if protocol == 'ssh':
+            self.run('git push %s %s' % (origin, branch))
+        elif protocol == 'https':
+            print('userpass: %s:%s' % (os.environ['GIT_USERNAME'], os.environ['GIT_PASSWORD']))
+            self.run('git push https://%s:%s@%s %s:%s' % (os.environ['GIT_USERNAME'], os.environ['GIT_PASSWORD'], os.environ['GIT_REPOSITORY'], branch, branch))
+        else:
+            raise ValueError('Invalid git push protocol: %s' % protocol)
 
     def current_branch(self):
         result = self.run('git rev-parse --abbrev-ref HEAD')
