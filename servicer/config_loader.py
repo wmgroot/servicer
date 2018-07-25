@@ -2,7 +2,7 @@ import os
 import json
 import yaml
 
-from .tokens import interpolate_tokens
+from .tokens import interpolate_tokens, replace_tokens
 
 class ConfigLoader():
     def __init__(self, args={}):
@@ -107,4 +107,4 @@ class ConfigLoader():
 
     def load_environment_variables(self, variables={}):
         for key, value in variables.items():
-            os.environ[key] = value
+            os.environ[key] = replace_tokens(value, os.environ)

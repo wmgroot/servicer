@@ -22,19 +22,11 @@ class GetServiceEnvironmentTest(ServicerTest):
 
         self.servicer.map_service_environment = mock.Mock(return_value=None)
 
-    def test_defaults(self):
-        result = self.servicer.get_service_environment('my-branch')
-        self.servicer.map_service_environment.assert_called_with('my-branch', [
-            { 'branch': 'master', 'environment': 'production' },
-            { 'branch': 'develop' },
-            { 'branch': 'env-*' },
-        ])
-        self.assertEqual(result, None)
-
-    def test_custom_mappings(self):
         self.servicer.config['environment'] = {
             'mappings': [{ 'branch': 'foo', 'environment': 'bar' }],
         }
+
+    def test_custom_mappings(self):
         result = self.servicer.get_service_environment('my-branch')
         self.servicer.map_service_environment.assert_called_with('my-branch', self.servicer.config['environment']['mappings'])
         self.assertEqual(result, None)

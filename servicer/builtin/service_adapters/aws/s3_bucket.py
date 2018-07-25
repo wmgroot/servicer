@@ -36,9 +36,9 @@ class Service(AWSService):
             getattr(self, step['type'])(**step['args'])
 
     def sync(self, from_path=None, to_path=None, delete=True):
-        command = f'aws s3 sync {from_path} {to_path}'
+        command = 'aws s3 sync %s %s' % (from_path, to_path)
         if delete:
-            command = f'{command} --delete'
+            command = '%s --delete' % command
         self.run(command, shell=True)
 
     def url_to_s3(self, key=None, url=None):
