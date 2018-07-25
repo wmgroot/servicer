@@ -129,7 +129,7 @@ class Service(BasePackageService):
 
         existing_packages = []
         for package, versions in packages.items():
-            existing_versions = self.get_versions(package_name=package)
+            existing_versions = self.get_existing_versions(package_name=package)
             intersection = set.intersection(set(existing_versions), set(versions))
             if bool(intersection):
                 existing_packages.extend(['%s-%s' % (package, i) for i in intersection])

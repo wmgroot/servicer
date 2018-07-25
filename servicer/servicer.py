@@ -109,8 +109,13 @@ class Servicer():
         # if 'config' in self.config['git']:
         #     self.git.set_config(self.config['git']['config'])
 
+        # TODO: better implementation
+        git_ref = self.config['git']['default-branch']
+        if 'GIT_DIFF_REF' in os.environ:
+            git_ref = os.environ['GIT_DIFF_REF']
+
         if self.config['git']['ignore-servicer-commits']:
-            authors = self.git.authors_for_changes_ahead_of_ref(self.config['git']['default-branch'])
+            authors = self.git.authors_for_changes_ahead_of_ref(git_ref)
             print('Commit authors: %s' % authors)
             if authors == ['servicer']:
                 print('Only automated servicer changes were detected, skipping this build.')
@@ -181,8 +186,12 @@ class Servicer():
             if len(tags) > 0:
                 git_ref = tags[-1]
 
-        print('\nGit Ref: %s' % self.config['git']['default-branch'])
-        diff_files = self.git.files_changed_ahead_of_ref(self.config['git']['default-branch'])
+        git_ref = self.config['git']['default-branch']
+        if 'GIT_DIFF_REF' in os.environ:
+            git_ref = os.environ['GIT_DIFF_REF']
+
+        print('\nGit Ref: %s' % git_ref)
+        diff_files = self.git.files_changed_ahead_of_ref(git_ref)
         print('\nChanged Files:')
         print('\n'.join(diff_files))
 
