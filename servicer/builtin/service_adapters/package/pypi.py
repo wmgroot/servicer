@@ -1,10 +1,8 @@
 import os
 import sys
 import re
-import hashlib
-import requests
-from requests.auth import HTTPBasicAuth
-from ..base_package_service import BasePackageService
+
+from .base_package import Service as BasePackageService
 
 class Service(BasePackageService):
     def __init__(self, config=None):
@@ -14,16 +12,7 @@ class Service(BasePackageService):
 
         self.name_regex = re.compile('name\s*=\s*[\'\"]+(.*?)[\'\"]+')
         self.version_regex = re.compile('version\s*=\s*[\'\"]+(\d+\.\d+\.\d+)[\'\"]+')
-
-    def up(self):
-        super().up()
-
-        if 'steps' in self.config:
-            self.run_steps(self.config['steps'])
-
-    def run_steps(self, steps):
-        for step in steps:
-            getattr(self, step['type'])(**step.get('args', {}))
+        self.package_version_format = 'version = \'%s\''
 
     def setup_py(self, command):
         self.run('%s setup.py %s' % (os.getenv('PYTHON_EXE', 'python'), command))
@@ -139,18 +128,8 @@ class Service(BasePackageService):
                 print(existing_packages)
                 raise ValueError('Package already exists! %s-%s' % (package_name, version))
 
-    def if_package_version_exists(self, package_name=None, version=None, action=None):
-        print('checking for %s-%s...' % (package_name, version))
-
-        exists = version in self.get_existing_versions(package_name)
-        if exists and action:
-            if action == 'error':
-                raise ValueError('Package already exists! %s-%s' % (package_name, version))
-
-        return exists
-
-    def get_existing_versions(self, package_name=None):
-        result = self.pip('install %s==' % package_name)
+    def get_existing_versions(self, **package_info):
+        result = self.pip('install %s==' % package_info['name'])
         regex = re.compile('\(from versions: (.*)\)')
         match = regex.search(result['stdout'])
 
@@ -158,7 +137,7 @@ class Service(BasePackageService):
         if match:
             versions.extend(match.group(1).split(', '))
 
-        print('existing package: %s' % package_name)
+        print('existing package: %s' % package_info['name'])
         print('existing versions: %s' % versions)
 
         return versions
@@ -166,34 +145,3 @@ class Service(BasePackageService):
     def pip(self, command, hide_output=True):
         result = self.run('PIP_CONFIG_FILE=%s %s %s' % (self.pip_conf_path, os.getenv('PIP_EXE', 'pip'), command), check=False, hide_output=hide_output)
         return result
-
-    def package_name(self, path):
-        with open(self.config['package_file_path']) as f:
-            text = f.read()
-            result = self.name_regex.search(text)
-
-            if result:
-                return result.groups()[0]
-            else:
-                raise ValueError('Package version not defined at: %s' % path)
-
-    def package_version(self, path):
-        with open(self.config['version_file_path']) as f:
-            text = f.read()
-            result = self.version_regex.search(text)
-
-            if result:
-                return result.groups()[0]
-            else:
-                raise ValueError('Package version not defined at: %s' % path)
-
-    def write_package_version(self, path, version):
-        text = ''
-        with open(self.config['version_file_path']) as f:
-            text = f.read()
-
-        new_version = 'version = \'%s\'' % version
-        text = self.version_regex.sub(new_version, text)
-
-        with open(self.config['version_file_path'], 'w') as out:
-            out.write(text)

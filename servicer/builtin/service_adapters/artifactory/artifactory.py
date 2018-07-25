@@ -117,3 +117,39 @@ class Service(BaseService):
             raise ValueError('Artifact already exists! %s' % artifactory_path)
 
         return exists
+
+    def ensure_repository(self, name=None, package_type=None, repo_type='local', description=''):
+        key = '%s-%s' % (name, package_type)
+        url = '%s/api/repositories/%s' % (self.endpoint, key)
+
+        response = requests.get(url, auth=HTTPBasicAuth(self.username, self.password))
+        if response.status_code == 200:
+            print('repository already exists: %s' % key)
+        elif response.status_code == 400:
+            self.create_repository(name=name, package_type=package_type, repo_type=repo_type, description=description)
+        else:
+            response.raise_for_status()
+
+    def create_repository(self, name=None, package_type=None, repo_type='local', description=''):
+        key = '%s-%s' % (name, package_type)
+        print('creating repository: %s' % key)
+
+        url = '%s/api/repositories/%s' % (self.endpoint, key)
+        data = {
+            'key': key,
+            'packageType': package_type,
+            'rclass': repo_type,
+            'description': description,
+        }
+        print(data)
+        response = requests.put(
+            url,
+            auth=HTTPBasicAuth(self.username, self.password),
+            headers={
+                # 'Content-Type': 'application/json',
+                'Content-Type': 'application/vnd.org.jfrog.artifactory.repositories.LocalRepositoryConfiguration+json',
+            },
+            json=data,
+        )
+        response.raise_for_status
+        print(response.text)

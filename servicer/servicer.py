@@ -28,26 +28,27 @@ class Servicer():
         self.normalize_ci_environment()
         self.git_init()
 
-        self.services = self.load_service_modules()
-        self.service_order = self.order_services(self.services)
+        self.active_services = self.load_service_modules()
+        self.service_order = self.order_services(self.active_services)
+        self.load_steps()
 
         if 'generate_ci' in self.config['args'] and self.config['args']['generate_ci']:
             generate_ci_config(config=config, path='.')
             sys.exit(0)
-
-        if 'step' in self.config['args']:
-            self.config['args']['step'] = self.config['args']['step'].split(',')
 
     def load_arguments(self):
         parser = argparse.ArgumentParser(description='Process deployment options.')
         parser.add_argument('--generate_ci', action='store_true', help='generate a ci config file, do not run any deploy options')
         parser.add_argument('--service', help='deploy only the provided service')
         parser.add_argument('--services_file', default='services.yaml', help='custom path to your services config file (default is services.yaml)')
-        parser.add_argument('--servicer_config_path', default=f'{os.getcwd()}/.servicer', help='path to your servicer directory (default is ./servicer)')
-        parser.add_argument('--step', default='deploy', help='perform the comma-separated build steps, defaults to deploy only')
+        parser.add_argument('--servicer_config_path', default='%s/.servicer' % os.getcwd(), help='path to your servicer directory (default is ./servicer)')
+        parser.add_argument('--step', help='perform the comma-separated build steps, defaults to all steps')
+        parser.add_argument('--no_ignore', action='store_true', help='disables change detection ignoring services, defaults to false')
         return parser.parse_args()
 
     def load_environment(self, args):
+        os.environ['PROJECT_PATH'] = os.environ['PWD']
+
         if 'servicer_config_path' not in args:
             return
 
@@ -126,8 +127,8 @@ class Servicer():
         if self.config['git']['ignore-servicer-commits'] and 'diff-ref' in self.config['git']:
             authors = self.git.authors_for_changes_ahead_of_ref(self.config['git']['diff-ref'])
             print('Commit authors: %s' % authors)
-            if authors == ['servicer']:
-                print('Only automated servicer changes were detected, skipping this build.')
+            if 'servicer' in authors:
+                print('Automated servicer changes were detected, skipping this build.')
                 sys.exit(0)
 
     def load_service_modules(self):
@@ -137,22 +138,30 @@ class Servicer():
             for name, service in self.config['services'].items():
                 service['name'] = name
 
-        services = {}
+        active_services = []
         if 'service' in self.config['args'] and self.config['args']['service']:
-            service_names = self.config['args']['service'].split(',')
-            for name in service_names:
-                services[name] = self.config['services'][name]
+            active_services.extend(self.config['args']['service'].split(','))
         elif 'services' in self.config:
-            services = self.config['services']
-            self.ignore_unchanged_services(services)
+            active_services.extend(self.config['services'].keys())
 
-        for service_name, service in services.items():
+        print('Active Services:\n%s\n' % '\n'.join(active_services))
+
+        self.ignore_unchanged_services(active_services)
+
+        for service_name in active_services:
+            service = self.config['services'][service_name]
+
             if 'config' not in service:
                 service['config'] = {}
 
+            if 'provider' not in service:
+                continue
+
             self.try_initialize_provider(service['provider'], service)
 
-            service['name'] = service_name
+            if 'service_type' not in service:
+                continue
+
             service_modules = [
                 {
                     'name': 'service_adapters.%s.%s' % (service['provider'], service['service_type']),
@@ -177,9 +186,12 @@ class Servicer():
             else:
                 service['module'] = module
 
-        return services
+        return active_services
 
     def ignore_unchanged_services(self, services):
+        if 'no_ignore' in self.config['args'] and self.config['args']['no_ignore']:
+            return
+
         if not 'git' in self.config or not self.config['git']['enabled'] or not self.config['git']['ignore-unchanged']:
             return
 
@@ -209,7 +221,8 @@ class Servicer():
             matched_files, diff_files = self.match_regexes(diff_files, regexes)
 
         ignored_services = []
-        for service_name, service in services.items():
+        for service_name in services:
+            service = self.config['services'][service_name]
             service_changed_files = diff_files
 
             if 'git' in service:
@@ -236,10 +249,10 @@ class Servicer():
         print('\nIgnored Services:')
         for sn in ignored_services:
             print(sn)
-            services.pop(sn)
+            services.remove(sn)
 
         print('\nChanged Services:')
-        print('\n'.join(services.keys()))
+        print('\n'.join(services))
 
     def sanitize_regex(self, matcher):
         if matcher.startswith('/') and matcher.endswith('/'):
@@ -349,9 +362,9 @@ class Servicer():
         sys.exit(1)
 
     def order_services(self, services):
-        service_names = services.keys()
         dependencies = {}
-        for service_name, service in services.items():
+        for service_name in services:
+            service = self.config['services'][service_name]
             if 'depends_on' in service:
                 dependencies[service_name] = set(service['depends_on'])
             else:
@@ -360,55 +373,70 @@ class Servicer():
         ordered_services = toposort2(dependencies)
         return [item for sublist in ordered_services for item in sublist]
 
+    def load_steps(self):
+        self.steps = {}
+        self.step_order = []
+        if 'steps' in self.config:
+            for step in self.config['steps']:
+                self.steps[step['name']] = step
+                self.step_order.append(step['name'])
+
+        if 'step' in self.config['args'] and self.config['args']['step']:
+            self.step_order = self.config['args']['step'].split(',')
+
     def run_steps(self):
-        for step in self.config['args']['step']:
+        self.print_title('running steps')
+        print('\n'.join(self.step_order))
+
+        for step in self.step_order:
+            # TODO: rethink and standardize this process
+            if 'TERMINATE_BUILD' in os.environ:
+                print('build termination requested, stopping with code: %s' % os.environ['TERMINATE_BUILD'])
+                sys.exit(int(os.environ['TERMINATE_BUILD']))
+
             self.print_title('%s step' % step)
 
-            if step == 'deploy':
-                if self.service_environment:
-                    self.up()
-                else:
-                    print('skipping, no valid deploy environment was matched')
-            else:
-                for service_name in self.service_order:
-                    service = self.services[service_name]
+            if step in self.config['steps']:
+                step_config = self.config['steps'][step]
+                if 'requires_service_environment' in step_config and step_config['requires_service_environment']:
+                    print('skipping, no valid service environment found for step: %s' % step)
+                    continue
 
-                    if 'steps' in service and step in service['steps']:
-                        commands = service['steps'][step].get('commands')
-                        if commands:
-                            for c in commands:
-                                self.run(c)
+            for service_name in self.service_order:
+                service = self.config['services'][service_name]
 
-                        if 'module' in service and 'config' in service['steps'][step]:
-                            config = service['steps'][step].get('config')
-                            print('Step Config (%s): ' % step)
-                            print(json.dumps(config, indent=4, sort_keys=True))
-                            adapter = service['module'].Service(config)
-                            adapter.up()
+                if 'steps' in service and step in service['steps']:
+                    commands = service['steps'][step].get('commands')
+                    if commands:
+                        for c in commands:
+                            self.run(c)
 
-                        post_commands = service['steps'][step].get('post_commands')
-                        if post_commands:
-                            for c in post_commands:
-                                self.run(c)
+                    if 'module' in service and 'config' in service['steps'][step]:
+                        config = service['steps'][step].get('config')
+                        print('Step Config (%s): ' % step)
+                        print(json.dumps(config, indent=4, sort_keys=True))
+                        adapter = service['module'].Service(config)
+                        adapter.up()
+
+                    post_commands = service['steps'][step].get('post_commands')
+                    if post_commands:
+                        for c in post_commands:
+                            self.run(c)
 
     def get_service_environment(self, branch):
-        mappings = None
-        if 'environment' in self.config and 'mappings' in self.config['environment']:
-            mappings = self.config['environment']['mappings']
-        else:
-            mappings = [
-                { 'branch': 'master', 'environment': 'production' },
-                { 'branch': 'develop' },
-                { 'branch': 'env-*' },
-            ]
+        service_environment = None
+        if 'environment' not in self.config or 'mappings' not in self.config['environment']:
+            return service_environment
 
+        mappings = self.config['environment']['mappings']
         service_environment = self.map_service_environment(branch, mappings)
 
         if service_environment:
             for ch in ['\\', '/', '_']:
                 if ch in service_environment:
                     service_environment = service_environment.replace(ch, '-')
-            return service_environment
+
+        return service_environment
 
     def map_service_environment(self, branch, mappings=[]):
         for m in mappings:
