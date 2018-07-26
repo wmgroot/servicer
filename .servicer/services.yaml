@@ -5,7 +5,6 @@ ci:
 
 git:
   enabled: true
-  default-branch: origin/master
   ignore_paths:
     - '*README.md'
     - '*LICENSE'

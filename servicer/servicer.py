@@ -103,19 +103,28 @@ class Servicer():
         if not 'git' in self.config or not self.config['git']['enabled']:
             return
 
-        if not self.config['git']['default-branch'].startswith('origin/'):
-            self.config['git']['default-branch'] = 'origin/%s' % self.config['git']['default-branch']
+        self.print_title('initializing git integration')
 
         # if 'config' in self.config['git']:
         #     self.git.set_config(self.config['git']['config'])
 
-        # TODO: better implementation
-        git_ref = self.config['git']['default-branch']
         if 'GIT_DIFF_REF' in os.environ:
-            git_ref = os.environ['GIT_DIFF_REF']
+            result = self.run('git cat-file -t %s' % os.environ['GIT_DIFF_REF'], check=False)
+            if result['status'] != 0:
+                print('Invalid GIT_DIFF_REF provided!')
+            else:
+                self.config['git']['diff-ref'] = os.environ['GIT_DIFF_REF']
 
-        if self.config['git']['ignore-servicer-commits']:
-            authors = self.git.authors_for_changes_ahead_of_ref(git_ref)
+        if 'diff-ref' not in self.config['git'] and 'BRANCH' in os.environ and 'default-branch' in self.config['git']:
+            if os.environ['BRANCH'] != self.config['git']['default-branch']:
+                print('defaulting Git Diff Ref to default-branch')
+                self.config['git']['diff-ref'] = 'origin/%s' % self.config['git']['default-branch']
+
+        if 'diff-ref' in self.config['git']:
+            print('Git Diff Ref: %s\n' % self.config['git']['diff-ref'])
+
+        if self.config['git']['ignore-servicer-commits'] and 'diff-ref' in self.config['git']:
+            authors = self.git.authors_for_changes_ahead_of_ref(self.config['git']['diff-ref'])
             print('Commit authors: %s' % authors)
             if authors == ['servicer']:
                 print('Only automated servicer changes were detected, skipping this build.')
@@ -174,6 +183,10 @@ class Servicer():
         if not 'git' in self.config or not self.config['git']['enabled'] or not self.config['git']['ignore-unchanged']:
             return
 
+        if 'diff-ref' not in self.config['git']:
+            print('No GIT_DIFF_REF found, aborting change detection.')
+            return
+
         if 'BRANCH' in os.environ:
             sanitized_tag = 'servicer-%s' % self.git.sanitize_tag(os.environ['BRANCH'])
             tags = [t for t in self.git.list_tags() if t.startswith(sanitized_tag)]
@@ -186,12 +199,7 @@ class Servicer():
             if len(tags) > 0:
                 git_ref = tags[-1]
 
-        git_ref = self.config['git']['default-branch']
-        if 'GIT_DIFF_REF' in os.environ:
-            git_ref = os.environ['GIT_DIFF_REF']
-
-        print('\nGit Ref: %s' % git_ref)
-        diff_files = self.git.files_changed_ahead_of_ref(git_ref)
+        diff_files = self.git.files_changed_ahead_of_ref(self.config['git']['diff-ref'])
         print('\nChanged Files:')
         print('\n'.join(diff_files))
 
