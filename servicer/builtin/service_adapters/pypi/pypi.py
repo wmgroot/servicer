@@ -112,7 +112,7 @@ class Service(BasePackageService):
         self.run('twine upload --config-file=%s %s -r %s' % (self.pypirc_path, path, server))
 
     def if_package_versions_exist(self, package_directory=None, action=None):
-        regex = re.compile('(.+)-(\d+\.\d+\.\d+)\..+')
+        regex = re.compile('(.+)-(\d+\.\d+\.\d+\.?.*?)\..+')
         packages = {}
 
         for f in os.listdir(package_directory):
