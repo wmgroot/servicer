@@ -199,8 +199,7 @@ class Servicer():
             if len(tags) > 0:
                 git_ref = tags[-1]
 
-        # diff_files = self.git.files_changed_ahead_of_ref(self.config['git']['diff-ref'])
-        diff_files = self.git.diff(self.config['git']['diff-ref'])
+        diff_files = self.git.diff(self.config['git']['diff-ref'], name_only=True, merge_base=True)
         print('\nChanged Files:')
         print('\n'.join(diff_files))
 

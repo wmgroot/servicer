@@ -9,12 +9,13 @@ class Git():
         self.run = run
         self.hide_output = hide_output
 
-    def files_changed_ahead_of_ref(self, ref):
-        forward_commits = self.commits_against_ref(ref, commit_type='+')
-        files_changed = set()
-        for c in forward_commits:
-            files_changed.update(self.diff(a='%s~' % c, b=c))
-        return sorted(list(files_changed))
+    # deprecated, use diff with merge_base=True instead
+    # def files_changed_ahead_of_ref(self, ref):
+    #     forward_commits = self.commits_against_ref(ref, commit_type='+')
+    #     files_changed = set()
+    #     for c in forward_commits:
+    #         files_changed.update(self.diff(a='%s~' % c, b=c, name_only=True))
+    #     return sorted(list(files_changed))
 
     def authors_for_changes_ahead_of_ref(self, ref):
         forward_commits = self.commits_against_ref(ref, commit_type='+')
@@ -29,9 +30,11 @@ class Git():
         commits = result['stdout'].strip().split('\n')
         return [c[2:] for c in commits if c and c.startswith(commit_type)]
 
-    def diff(self, a, b=None, name_only=True, hide_output=None):
+    def diff(self, a, b='HEAD', name_only=False, merge_base=False, hide_output=None):
         command = 'git diff %s' % a
-        if b:
+        if merge_base:
+            command = '%s...%s' % (command, b)
+        else:
             command = '%s..%s' % (command, b)
         if name_only:
             command = '%s --name-only' % command
