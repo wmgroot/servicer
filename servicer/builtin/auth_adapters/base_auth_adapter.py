@@ -10,3 +10,6 @@ class BaseAuthAdapter():
 
     def authenticate(self):
         pass
+
+    def current_user(self):
+        pass

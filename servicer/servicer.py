@@ -277,21 +277,24 @@ class Servicer():
         provider['name'] = provider_name
 
         should_initialize = self.service_environment and not provider.get('initialized')
+        force_authenticate = False
 
         provider_config = copy.deepcopy(provider)
 
         if service and 'auth' in service:
             self.config_loader.merge_config(provider_config, service['auth'])
             should_initialize = True
+            force_authenticate = True
 
         if should_initialize:
-            self.initialize_provider(provider_config)
+            self.initialize_provider(provider_config, force_authenticate=force_authenticate)
 
         if service:
             service['config']['initialized_provider'] = provider_config
 
-    def initialize_provider(self, provider):
+    def initialize_provider(self, provider, force_authenticate=False):
         self.print_title('intializing provider: %s' % provider['name'])
+        print('force_authenticate: %s' % force_authenticate)
 
         if 'libraries' in provider and provider['libraries']:
             self.run('%s install %s' % (os.getenv('PIP_EXE', 'pip'), ' '.join(provider['libraries'])))
@@ -304,7 +307,7 @@ class Servicer():
             auth_script_path = self.load_module_from_paths(auth_script_paths)
             provider['auth_script_path'] = auth_script_path
             self.run(auth_script_path)
-        if 'config' in provider and provider['config']:
+        if 'config' in provider:
             auth_modules = [
                 {
                     'name': 'auth_adapters.%s' % provider['name'],
@@ -318,7 +321,12 @@ class Servicer():
                 },
             ]
             module = self.load_module_from_paths(auth_modules)
-            module.AuthAdapter(provider['config']).authenticate()
+            auth = module.AuthAdapter(provider['config'])
+
+            if force_authenticate or not auth.current_user():
+                auth.authenticate()
+
+            print('Current User: %s' % auth.current_user())
 
         provider['initialized'] = True
 

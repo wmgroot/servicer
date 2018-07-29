@@ -21,6 +21,13 @@ class AuthAdapter(BaseAuthAdapter):
         self.run('gcloud config set project %s' % project)
         self.run('gcloud config set compute/zone %s' % compute_zone)
 
+    def current_user(self):
+        result = self.run('gcloud auth list --filter=status:ACTIVE --format="value(account)"')
+        active_users = result['stdout'].strip().split('\n')
+
+        if active_users:
+            return active_users[0]
+
     def ensure_key_file(self, key_file_path):
         if os.path.isfile(key_file_path):
             print('found existing gcloud key-file: %s' % key_file_path)
