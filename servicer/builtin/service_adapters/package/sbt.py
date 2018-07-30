@@ -65,10 +65,15 @@ class Service(BasePackageService):
             url,
             auth=HTTPBasicAuth(os.environ['ARTIFACTORY_USERNAME'], os.environ['ARTIFACTORY_PASSWORD']),
         )
-        response.raise_for_status()
 
-        body = response.json()
-        versions = [child['uri'][1:] for child in body['children'] if child['folder']]
+        versions = []
+        if response.status_code == 404:
+            print('WARNING: repository path not found: %s' % url)
+        else:
+            response.raise_for_status()
+
+            body = response.json()
+            versions.extend([child['uri'][1:] for child in body['children'] if child['folder']])
 
         print('existing versions for: %s' % package_info['name'])
         print(versions)
