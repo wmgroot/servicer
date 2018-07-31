@@ -20,5 +20,5 @@ jobs:
       - run: sudo chown -R circleci:circleci /usr/local/bin
       - run: sudo chown -R circleci:circleci /usr/local/lib/python3.6/site-packages
       - run: sudo chown -R circleci:circleci /usr/local/man/man1
-      - run: pip install servicer==0.5.5
+      - run: pip install servicer==0.6.1
       - run: servicer --step=build,test,deploy

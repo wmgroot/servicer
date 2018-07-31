@@ -289,7 +289,7 @@ class Servicer():
 
         provider['name'] = provider_name
 
-        should_initialize = self.service_environment and not provider.get('initialized')
+        should_initialize = not provider.get('initialized')
         force_authenticate = False
 
         provider_config = copy.deepcopy(provider)
@@ -301,6 +301,7 @@ class Servicer():
 
         if should_initialize:
             self.initialize_provider(provider_config, force_authenticate=force_authenticate)
+            provider['initialized'] = True
 
         if service:
             service['config']['initialized_provider'] = provider_config
@@ -340,8 +341,6 @@ class Servicer():
                 auth.authenticate()
 
             print('Current User: %s' % auth.current_user())
-
-        provider['initialized'] = True
 
     def load_module_from_paths(self, modules):
         for mp in modules:
