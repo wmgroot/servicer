@@ -9,7 +9,7 @@ git:
   enabled: false
   config:
     user.name: servicer
-  default-branch: master
+  diff-tagging-enabled: true
   ignore-unchanged: true
   ignore-servicer-commits: false
 

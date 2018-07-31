@@ -58,6 +58,14 @@ class Git():
         if push:
             self.run('git push origin %s' % tag)
 
+    def delete_tag(self, tags):
+        if not isinstance(tags, list):
+            tags = [tags]
+
+        for tag in tags:
+            self.run('git tag -d %s' % tag)
+            self.run('git push origin :refs/tags/%s' % tag)
+
     def list_tags(self):
         result = self.run('git tag')
         return result['stdout'].strip().split('\n')

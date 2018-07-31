@@ -6,6 +6,7 @@ import argparse
 import yaml
 import re
 import copy
+from datetime import datetime
 
 from .generate_ci_config import generate_ci_config
 from .topological_order import toposort2
@@ -48,6 +49,8 @@ class Servicer():
 
     def load_environment(self, args):
         os.environ['PROJECT_PATH'] = os.environ['PWD']
+        os.environ['BUILD_DATETIME'] = str(datetime.utcnow())
+        os.environ['BUILD_DATE'] = datetime.now().strftime('%Y-%m-%d')
 
         if 'servicer_config_path' not in args:
             return
@@ -106,9 +109,6 @@ class Servicer():
 
         self.print_title('initializing git integration')
 
-        # if 'config' in self.config['git']:
-        #     self.git.set_config(self.config['git']['config'])
-
         if 'GIT_DIFF_REF' in os.environ:
             result = self.run('git cat-file -t %s' % os.environ['GIT_DIFF_REF'], check=False)
             if result['status'] != 0:
@@ -116,10 +116,23 @@ class Servicer():
             else:
                 self.config['git']['diff-ref'] = os.environ['GIT_DIFF_REF']
 
-        if 'diff-ref' not in self.config['git'] and 'BRANCH' in os.environ and 'default-branch' in self.config['git']:
-            if os.environ['BRANCH'] != self.config['git']['default-branch']:
-                print('defaulting Git Diff Ref to default-branch')
-                self.config['git']['diff-ref'] = 'origin/%s' % self.config['git']['default-branch']
+        if 'BRANCH' in os.environ:
+            if self.config['git']['diff-tagging-enabled']:
+                servicer_tag_part = 'servicer-%s' % self.git.sanitize_tag(os.environ['BRANCH'])
+                self.build_tags = [t for t in self.git.list_tags() if t.startswith(servicer_tag_part)]
+
+                if os.getenv('DEBUG'):
+                    print('branch tag: %s' % sanitized_tag)
+                    print('matching tags:')
+                    print('\n'.join(self.build_tags))
+
+                if len(self.build_tags) > 0:
+                    self.config['git']['diff-ref'] = self.build_tags[-1]
+
+            if 'diff-ref' not in self.config['git'] and 'default-branch' in self.config['git']:
+                if os.environ['BRANCH'] != self.config['git']['default-branch']:
+                    print('defaulting Git Diff Ref to default-branch')
+                    self.config['git']['diff-ref'] = 'origin/%s' % self.config['git']['default-branch']
 
         if 'diff-ref' in self.config['git']:
             print('Git Diff Ref: %s\n' % self.config['git']['diff-ref'])
@@ -130,6 +143,32 @@ class Servicer():
             if 'servicer' in authors:
                 print('Automated servicer changes were detected, skipping this build.')
                 sys.exit(0)
+
+    def tag_build(self):
+        if not 'git' in self.config or not self.config['git']['enabled']:
+            return
+
+        if not self.config['git']['diff-tagging-enabled'] or not 'BUILD_NUMBER' in os.environ:
+            return
+
+        servicer_tag = self.servicer_git_tag()
+        if servicer_tag:
+            print('Build complete, tagging: %s')
+            self.git.tag(servicer_tag, push=True)
+
+            print('Removing old tags...')
+            self.remove_stale_tags()
+
+    def remove_stale_tags(self):
+        self.git.delete_tag(self.build_tags)
+
+    def servicer_git_tag(self):
+        if 'BRANCH' not in os.environ:
+            return
+
+        sanitized_tag = self.git.sanitize_tag(os.environ['BRANCH'])
+        print(os.environ)
+        return 'servicer-%s-%s-%s' % (sanitized_tag, os.environ['BUILD_DATE'], os.environ['BUILD_NUMBER'])
 
     def load_service_modules(self):
         self.print_title('loading service modules')
@@ -198,18 +237,6 @@ class Servicer():
         if 'diff-ref' not in self.config['git']:
             print('No GIT_DIFF_REF found, aborting change detection.')
             return
-
-        if 'BRANCH' in os.environ:
-            sanitized_tag = 'servicer-%s' % self.git.sanitize_tag(os.environ['BRANCH'])
-            tags = [t for t in self.git.list_tags() if t.startswith(sanitized_tag)]
-
-            if os.getenv('DEBUG'):
-                print('branch tag: %s' % sanitized_tag)
-                print('matching tags:')
-                print('\n'.join(tags))
-
-            if len(tags) > 0:
-                git_ref = tags[-1]
 
         diff_files = self.git.diff(self.config['git']['diff-ref'], name_only=True, merge_base=True)
         print('\nChanged Files:')
@@ -421,6 +448,8 @@ class Servicer():
                     if post_commands:
                         for c in post_commands:
                             self.run(c)
+
+        self.tag_build()
 
     def get_service_environment(self, branch):
         service_environment = None
