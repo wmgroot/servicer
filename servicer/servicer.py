@@ -122,7 +122,7 @@ class Servicer():
                 self.build_tags = [t for t in self.git.list_tags() if t.startswith(servicer_tag_part)]
 
                 if os.getenv('DEBUG'):
-                    print('branch tag: %s' % sanitized_tag)
+                    print('branch tag: %s' % servicer_tag_part)
                     print('matching tags:')
                     print('\n'.join(self.build_tags))
 
@@ -422,14 +422,18 @@ class Servicer():
 
             self.print_title('%s step' % step)
 
-            if step in self.config['steps']:
-                step_config = self.config['steps'][step]
+            if step in self.steps and 'config' in self.steps[step]:
+                step_config = self.steps[step]['config']
+                print(step_config)
                 if 'requires_service_environment' in step_config and step_config['requires_service_environment']:
                     print('skipping, no valid service environment found for step: %s' % step)
                     continue
 
             for service_name in self.service_order:
                 service = self.config['services'][service_name]
+
+                self.print_title('service: %s' % service_name)
+                print(service)
 
                 if 'steps' in service and step in service['steps']:
                     commands = service['steps'][step].get('commands')
