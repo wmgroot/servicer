@@ -31,9 +31,6 @@ class ConfigLoader():
         print('Services Config:')
         print(json.dumps(services_config, indent=4, sort_keys=True))
 
-        print('Interpolating Tokens...')
-        interpolate_tokens(services_config, os.environ)
-
         return services_config
 
     # recursively load configs, overwriting base config values
@@ -107,6 +104,10 @@ class ConfigLoader():
                 merge_to[key] = value
 
         return merge_to
+
+    def interpolate_config(self, config):
+        print('Interpolating Tokens...')
+        interpolate_tokens(config, os.environ)
 
     def load_environment_variables(self, variables={}):
         for key, value in variables.items():

@@ -22,8 +22,12 @@ class Servicer():
             args = vars(self.load_arguments())
 
         self.load_environment(args)
+
         self.config_loader = ConfigLoader(args)
         self.config = self.config_loader.load_config()
+
+        self.determine_service_environment()
+        self.config_loader.interpolate_config(self.config)
 
         self.normalize_ci_environment()
         self.git_init()
@@ -67,6 +71,7 @@ class Servicer():
                 print(key)
             print()
 
+    def determine_service_environment(self):
         print()
         self.service_environment = os.getenv('SERVICE_ENVIRONMENT') or self.get_service_environment(os.environ['BRANCH'])
 
@@ -428,7 +433,10 @@ class Servicer():
 
             if step in self.steps and 'config' in self.steps[step]:
                 step_config = self.steps[step]['config']
-                print(step_config)
+
+                if os.getenv('DEBUG'):
+                    print(step_config)
+
                 if 'requires_service_environment' in step_config and step_config['requires_service_environment'] and self.service_environment == None:
                     print('skipping, no valid service environment found for step: %s' % step)
                     continue
@@ -436,11 +444,12 @@ class Servicer():
             for service_name in self.service_order:
                 service = self.config['services'][service_name]
 
-                self.print_title('service: %s' % service_name)
                 if os.getenv('DEBUG'):
                     print(service)
 
                 if 'steps' in service and step in service['steps']:
+                    self.print_title('service: %s' % service_name)
+
                     commands = service['steps'][step].get('commands')
                     if commands:
                         for c in commands:
