@@ -163,7 +163,7 @@ class Servicer():
 
         servicer_tag = self.servicer_git_tag()
         if servicer_tag:
-            print('Build complete, tagging: %s')
+            print('Build complete, tagging: %s' % servicer_tag)
             self.git.tag(servicer_tag, push=True)
 
             print('Removing old tags...')

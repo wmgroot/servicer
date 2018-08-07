@@ -12,7 +12,7 @@ class Service(BasePackageService):
 
         self.name_regex = re.compile('name\s*=\s*[\'\"]+(.*?)[\'\"]+')
         self.version_regex = re.compile('version\s*=\s*[\'\"]+(\d+\.\d+\.\d+)[\'\"]+')
-        self.package_version_format = 'version = \'%s\''
+        self.package_version_format = 'version=\'%s\''
 
     def setup_py(self, command):
         self.run('%s setup.py %s' % (os.getenv('PYTHON_EXE', 'python'), command))
