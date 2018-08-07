@@ -17,7 +17,6 @@ from .config_loader import ConfigLoader
 class Servicer():
     def __init__(self, args=None):
         self.run = run
-        self.git = Git(hide_output=('DEBUG' not in os.environ))
 
         if args == None:
             args = vars(self.load_arguments())
@@ -102,12 +101,18 @@ class Servicer():
         print('service environment: %s' % self.service_environment)
         if self.service_environment:
             os.environ['SERVICE_ENVIRONMENT'] = self.service_environment
+            print(os.environ['SERVICE_ENVIRONMENT'])
 
     def git_init(self):
         if not 'git' in self.config or not self.config['git']['enabled']:
             return
 
         self.print_title('initializing git integration')
+        git_args = { 'hide_output': 'DEBUG' not in os.environ }
+        if 'protocol' in self.config['git']:
+            git_args['protocol'] = self.config['git']['protocol']
+        print(git_args)
+        self.git = Git(**git_args)
 
         if 'GIT_DIFF_REF' in os.environ:
             result = self.run('git cat-file -t %s' % os.environ['GIT_DIFF_REF'], check=False)
@@ -167,7 +172,6 @@ class Servicer():
             return
 
         sanitized_tag = self.git.sanitize_tag(os.environ['BRANCH'])
-        print(os.environ)
         return 'servicer-%s-%s-%s' % (sanitized_tag, os.environ['BUILD_DATE'], os.environ['BUILD_NUMBER'])
 
     def load_service_modules(self):
@@ -425,7 +429,7 @@ class Servicer():
             if step in self.steps and 'config' in self.steps[step]:
                 step_config = self.steps[step]['config']
                 print(step_config)
-                if 'requires_service_environment' in step_config and step_config['requires_service_environment']:
+                if 'requires_service_environment' in step_config and step_config['requires_service_environment'] and self.service_environment == None:
                     print('skipping, no valid service environment found for step: %s' % step)
                     continue
 
@@ -433,7 +437,8 @@ class Servicer():
                 service = self.config['services'][service_name]
 
                 self.print_title('service: %s' % service_name)
-                print(service)
+                if os.getenv('DEBUG'):
+                    print(service)
 
                 if 'steps' in service and step in service['steps']:
                     commands = service['steps'][step].get('commands')
@@ -443,8 +448,14 @@ class Servicer():
 
                     if 'module' in service and 'config' in service['steps'][step]:
                         config = service['steps'][step].get('config')
+
+                        if 'git' in self.config and self.config['git']['enabled']:
+                            if 'git' not in config:
+                                config['git'] = {}
+                            config['git']['module'] = self.git
+
                         print('Step Config (%s): ' % step)
-                        print(json.dumps(config, indent=4, sort_keys=True))
+                        print(json.dumps(config, indent=4, sort_keys=True, default=str))
                         adapter = service['module'].Service(config)
                         adapter.up()
 

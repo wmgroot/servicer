@@ -5,9 +5,10 @@ from urllib.parse import quote_plus
 from .run import run
 
 class Git():
-    def __init__(self, hide_output=True):
+    def __init__(self, hide_output=True, protocol='ssh'):
         self.run = run
         self.hide_output = hide_output
+        self.protocol = os.getenv('GIT_PROTOCOL', protocol)
 
     # deprecated, use diff with merge_base=True instead
     # def files_changed_ahead_of_ref(self, ref):
@@ -56,15 +57,15 @@ class Git():
         self.run(command, hide_output=hide_output or self.hide_output)
 
         if push:
-            self.run('git push origin %s' % tag)
+            self.push(ref=tag)
 
     def delete_tag(self, tags):
         if not isinstance(tags, list):
             tags = [tags]
 
         for tag in tags:
-            self.run('git tag -d %s' % tag)
-            self.run('git push origin :refs/tags/%s' % tag)
+            self.run('git tag -d %s' % tag, check=False)
+            self.push(ref=':refs/tags/%s' % tag)
 
     def list_tags(self):
         result = self.run('git tag')
@@ -90,11 +91,22 @@ class Git():
 
         self.run('git diff-index --quiet HEAD || git commit -m "%s"' % message)
 
-    def push(self, origin='origin', branch=None, protocol='ssh'):
+    def push(self, origin='origin', ref=None, local_ref=None, protocol=None):
+        if protocol == None:
+            protocol = self.protocol
+
+        if local_ref:
+            ref = '%s:%s' % (ref, local_ref)
+
         if protocol == 'ssh':
-            self.run('git push %s %s' % (origin, branch))
+            self.run('git push %s %s' % (origin, ref))
         elif protocol == 'https':
-            self.run('git push https://%s:%s@%s %s:%s' % (os.environ['GIT_USERNAME'], quote_plus(os.environ['GIT_PASSWORD']), os.environ['GIT_REPOSITORY'], branch, branch))
+            self.run('git push https://%s:%s@%s %s' % (
+                os.environ['GIT_USERNAME'],
+                quote_plus(os.environ['GIT_PASSWORD']),
+                os.environ['GIT_REPOSITORY'],
+                ref,
+            ))
         else:
             raise ValueError('Invalid git push protocol: %s' % protocol)
 

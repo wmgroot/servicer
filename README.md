@@ -244,8 +244,6 @@ steps:
         - config:
           steps:
             - type: commit_and_push_changes
-              args:
-                protocol: https
 ```
 
 ## Environment ##

@@ -7,7 +7,9 @@ class Service(BaseService):
     def __init__(self, config=None):
         super().__init__(config=config)
 
-        self.git = Git()
+        print('package config: %s' % config)
+        if 'git' in config:
+            self.git = config['git']['module']
 
         if 'package_info' not in self.config:
             self.config['package_info'] = {}
@@ -56,7 +58,7 @@ class Service(BaseService):
                 # requests termination of the build after the current step completes
                 os.environ['TERMINATE_BUILD'] = '0'
 
-    def commit_and_push_changes(self, protocol='ssh'):
+    def commit_and_push_changes(self):
         commit_args = {
             'message': '[servicer] Automated version change.',
         }
@@ -65,7 +67,7 @@ class Service(BaseService):
             commit_args['add'] = self.config['package_info']['version_file_path']
 
         self.git.commit(**commit_args)
-        self.git.push(branch=self.git.current_branch(), protocol=protocol)
+        self.git.push(ref=self.git.current_branch())
 
     def increment_version(self, version):
         new_version = [int(v) for v in version.split('.')]

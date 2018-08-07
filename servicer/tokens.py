@@ -15,7 +15,6 @@ def interpolate_tokens(config, params, ignore_missing_key=False):
                 interpolate_tokens(config[i], params, ignore_missing_key)
 
 def replace_tokens(value, params, ignore_missing_key=False):
-    print(value)
     for match in re.findall(r'\${.+?}', value):
         token = match[2:-1]
         pieces = token.split(':')
@@ -23,11 +22,11 @@ def replace_tokens(value, params, ignore_missing_key=False):
 
         replace_value = None
         if key not in params:
-            if len(pieces) > 1:
-                # found default value
-                replace_value = pieces[1]
-            elif ignore_missing_key:
+            if ignore_missing_key:
                 continue
+            elif len(pieces) > 1:
+                # use default value
+                replace_value = pieces[1]
 
 
         if replace_value == None:
