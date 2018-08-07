@@ -33,7 +33,9 @@ class Servicer():
         self.git_init()
 
         self.active_services = self.load_service_modules()
+        print('active: %s' % self.active_services)
         self.service_order = self.order_services(self.active_services)
+        print('order: %s' % self.active_services)
         self.load_steps()
 
         if 'generate_ci' in self.config['args'] and self.config['args']['generate_ci']:
@@ -127,7 +129,7 @@ class Servicer():
                 self.config['git']['diff-ref'] = os.environ['GIT_DIFF_REF']
 
         if 'BRANCH' in os.environ:
-            if self.config['git']['diff-tagging-enabled']:
+            if self.config['git']['diff-tagging-enabled'] and 'diff-ref' not in self.config['git']:
                 servicer_tag_part = 'servicer-%s' % self.git.sanitize_tag(os.environ['BRANCH'])
                 self.build_tags = [t for t in self.git.list_tags() if t.startswith(servicer_tag_part)]
 
@@ -139,7 +141,7 @@ class Servicer():
                 if len(self.build_tags) > 0:
                     self.config['git']['diff-ref'] = self.build_tags[-1]
 
-            if 'diff-ref' not in self.config['git'] and 'default-branch' in self.config['git']:
+            if 'default-branch' in self.config['git'] and 'diff-ref' not in self.config['git']:
                 if os.environ['BRANCH'] != self.config['git']['default-branch']:
                     print('defaulting Git Diff Ref to default-branch')
                     self.config['git']['diff-ref'] = 'origin/%s' % self.config['git']['default-branch']
@@ -396,12 +398,18 @@ class Servicer():
         print('no module found!')
         sys.exit(1)
 
+    # TODO: handle step-service level dependencies
     def order_services(self, services):
         dependencies = {}
         for service_name in services:
             service = self.config['services'][service_name]
             if 'depends_on' in service:
-                dependencies[service_name] = set(service['depends_on'])
+                # only add dependencies that are in the current list of services
+                dependencies[service_name] = set()
+                for dep in service['depends_on']:
+                    if dep in services:
+                        dependencies[service_name].add(dep)
+                # dependencies[service_name] = set(service['depends_on'])
             else:
                 dependencies[service_name] = set()
 
@@ -420,8 +428,10 @@ class Servicer():
             self.step_order = self.config['args']['step'].split(',')
 
     def run_steps(self):
-        self.print_title('running steps')
+        self.print_title('running service steps')
         print('\n'.join(self.step_order))
+        print()
+        print('\n'.join(self.service_order))
 
         for step in self.step_order:
             # TODO: rethink and standardize this process
