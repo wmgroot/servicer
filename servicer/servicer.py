@@ -67,6 +67,15 @@ class Servicer():
                 print(key)
             print()
 
+        print()
+        self.service_environment = os.getenv('SERVICE_ENVIRONMENT') or self.get_service_environment(os.environ['BRANCH'])
+
+        print('branch: %s' % os.getenv('BRANCH'))
+        print('service environment: %s' % self.service_environment)
+        if self.service_environment:
+            os.environ['SERVICE_ENVIRONMENT'] = self.service_environment
+            print(os.environ['SERVICE_ENVIRONMENT'])
+
     def normalize_ci_environment(self):
         if 'ci' not in self.config:
             return
@@ -93,15 +102,6 @@ class Servicer():
 
         for ci_adapter in self.config['ci']['adapters'].values():
             ci_adapter.convert_environment_variables()
-
-        print()
-        self.service_environment = os.getenv('SERVICE_ENVIRONMENT') or self.get_service_environment(os.environ['BRANCH'])
-
-        print('branch: %s' % os.getenv('BRANCH'))
-        print('service environment: %s' % self.service_environment)
-        if self.service_environment:
-            os.environ['SERVICE_ENVIRONMENT'] = self.service_environment
-            print(os.environ['SERVICE_ENVIRONMENT'])
 
     def git_init(self):
         if not 'git' in self.config or not self.config['git']['enabled']:
