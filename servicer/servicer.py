@@ -47,7 +47,8 @@ class Servicer():
         parser.add_argument('--services_file', default='services.yaml', help='custom path to your services config file (default is services.yaml)')
         parser.add_argument('--servicer_config_path', default='%s/.servicer' % os.getcwd(), help='path to your servicer directory (default is ./servicer)')
         parser.add_argument('--step', help='perform the comma-separated build steps, defaults to all steps')
-        parser.add_argument('--no_ignore', action='store_true', help='disables change detection ignoring services, defaults to false')
+        parser.add_argument('--no_ignore', action='store_true', help='disables ignoring services through change detection')
+        parser.add_argument('--no_tag', action='store_true', help='disables build tagging')
         return parser.parse_args()
 
     def load_environment(self, args):
@@ -116,7 +117,6 @@ class Servicer():
         git_args = { 'hide_output': 'DEBUG' not in os.environ }
         if 'protocol' in self.config['git']:
             git_args['protocol'] = self.config['git']['protocol']
-        print(git_args)
         self.git = Git(**git_args)
 
         if 'GIT_DIFF_REF' in os.environ:
@@ -158,7 +158,7 @@ class Servicer():
         if not 'git' in self.config or not self.config['git']['enabled']:
             return
 
-        if not self.config['git']['diff-tagging-enabled'] or not 'BUILD_NUMBER' in os.environ:
+        if not self.config['git']['diff-tagging-enabled'] or 'no_ignore' in self.config['args'] or 'BUILD_NUMBER' not in os.environ:
             return
 
         servicer_tag = self.servicer_git_tag()
@@ -167,10 +167,11 @@ class Servicer():
             self.git.tag(servicer_tag, push=True)
 
             print('Removing old tags...')
-            self.remove_stale_tags()
+            self.build_tags.remove(servicer_tag)
+            self.remove_stale_tags(servicer_tag)
 
-    def remove_stale_tags(self):
-        self.git.delete_tag(self.build_tags)
+    def remove_stale_tags(self, tags):
+        self.git.delete_tag(tags)
 
     def servicer_git_tag(self):
         if 'BRANCH' not in os.environ:
@@ -247,7 +248,7 @@ class Servicer():
             print('No GIT_DIFF_REF found, aborting change detection.')
             return
 
-        self.git.fetch()
+        # self.git.fetch()
         diff_files = self.git.diff(self.config['git']['diff-ref'], name_only=True, merge_base=True)
         print('\nChanged Files:')
         print('\n'.join(diff_files))

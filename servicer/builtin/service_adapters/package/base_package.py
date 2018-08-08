@@ -7,7 +7,6 @@ class Service(BaseService):
     def __init__(self, config=None):
         super().__init__(config=config)
 
-        print('package config: %s' % config)
         if 'git' in config:
             self.git = config['git']['module']
 
