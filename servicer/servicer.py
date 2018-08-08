@@ -158,7 +158,10 @@ class Servicer():
         if not 'git' in self.config or not self.config['git']['enabled']:
             return
 
-        if not self.config['git']['diff-tagging-enabled'] or 'no_ignore' in self.config['args'] or 'BUILD_NUMBER' not in os.environ:
+        if not self.config['git']['diff-tagging-enabled'] or 'BUILD_NUMBER' not in os.environ:
+            return
+
+        if 'no_tag' in self.config['args'] and self.config['args']['no_tag']:
             return
 
         servicer_tag = self.servicer_git_tag()
@@ -167,8 +170,9 @@ class Servicer():
             self.git.tag(servicer_tag, push=True)
 
             print('Removing old tags...')
-            self.build_tags.remove(servicer_tag)
-            self.remove_stale_tags(servicer_tag)
+            if servicer_tag in self.build_tags:
+                self.build_tags.remove(servicer_tag)
+            self.remove_stale_tags(self.build_tags)
 
     def remove_stale_tags(self, tags):
         self.git.delete_tag(tags)
