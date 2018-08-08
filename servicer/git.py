@@ -121,3 +121,7 @@ class Git():
 
         result = self.run(command)
         return result['stdout'].strip()
+
+    def fetch(self):
+        command = 'git fetch'
+        self.run(command)

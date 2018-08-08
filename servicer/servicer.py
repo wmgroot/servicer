@@ -247,6 +247,7 @@ class Servicer():
             print('No GIT_DIFF_REF found, aborting change detection.')
             return
 
+        self.git.fetch()
         diff_files = self.git.diff(self.config['git']['diff-ref'], name_only=True, merge_base=True)
         print('\nChanged Files:')
         print('\n'.join(diff_files))
