@@ -33,9 +33,7 @@ class Servicer():
         self.git_init()
 
         self.active_services = self.load_service_modules()
-        print('active: %s' % self.active_services)
         self.service_order = self.order_services(self.active_services)
-        print('order: %s' % self.active_services)
         self.load_steps()
 
         if 'generate_ci' in self.config['args'] and self.config['args']['generate_ci']:

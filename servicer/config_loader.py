@@ -107,7 +107,7 @@ class ConfigLoader():
 
     def interpolate_config(self, config):
         print('Interpolating Tokens...')
-        interpolate_tokens(config, os.environ)
+        interpolate_tokens(config, os.environ, ignore_missing_key=True)
 
     def load_environment_variables(self, variables={}):
         for key, value in variables.items():
