@@ -16,8 +16,9 @@ class AuthAdapter(BaseAuthAdapter):
         key_file_path = self.config.get('key_file_path', os.environ['GCLOUD_KEY_FILE_PATH'])
 
         self.ensure_key_file(key_file_path)
-
         self.run('gcloud auth activate-service-account --key-file %s' % key_file_path)
+        self.run('rm %s' % key_file_path)
+
         self.run('gcloud config set project %s' % project)
         self.run('gcloud config set compute/zone %s' % compute_zone)
 
