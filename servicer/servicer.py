@@ -101,7 +101,7 @@ class Servicer():
 
     def determine_service_environment(self):
         print()
-        self.service_environment = os.getenv('SERVICE_ENVIRONMENT') or self.get_service_environment(os.environ['BRANCH'])
+        self.service_environment = os.getenv('SERVICE_ENVIRONMENT') or self.get_service_environment(os.getenv('BRANCH', 'local'))
 
         print('branch: %s' % os.getenv('BRANCH'))
         print('service environment: %s' % self.service_environment)
