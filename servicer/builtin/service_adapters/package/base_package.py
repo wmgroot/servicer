@@ -66,7 +66,7 @@ class Service(BaseService):
             commit_args['add'] = self.config['package_info']['version_file_path']
 
         self.git.commit(**commit_args)
-        self.git.push(ref=self.git.current_branch())
+        self.git.push(ref=os.environ['BRANCH'])
 
     def increment_version(self, version):
         new_version = [int(v) for v in version.split('.')]
