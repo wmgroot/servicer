@@ -127,7 +127,7 @@ class Servicer():
 
         if 'config' in self.config['git']:
             for key, value in self.config['git']['config'].items():
-                result = self.run('git config %s' % key)['stdout'].strip()
+                result = self.run('git config %s' % key, check=False)['stdout'].strip()
                 if result == '':
                     self.run('git config %s "%s"' % (key, value))
 
