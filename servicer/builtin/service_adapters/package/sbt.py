@@ -14,10 +14,6 @@ class Service(BasePackageService):
         self.scala_version_regex = re.compile('val scala = [\'\"]+(\d+\.\d+\.\d+)[\'\"]+')
         self.package_version_format = 'version in ThisBuild := "%s"'
 
-    def run_steps(self, steps):
-        for step in steps:
-            getattr(self, step['type'])(**step.get('args', {}))
-
     def generate_sbt_credentials(self, credentials=None):
         if credentials:
             self.credentials = credentials

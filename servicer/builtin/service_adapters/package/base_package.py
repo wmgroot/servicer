@@ -19,8 +19,12 @@ class Service(BaseService):
     def up(self):
         super().up()
 
+        self.results = {}
+
         if 'steps' in self.config:
             self.run_steps(self.config['steps'])
+
+        return self.results
 
     def run_steps(self, steps):
         for step in steps:
@@ -88,13 +92,17 @@ class Service(BaseService):
         self.package_info['name'] = self.package_name(self.config['package_info']['package_file_path'])
         self.package_info['version'] = self.package_version(self.config['package_info']['version_file_path'])
 
+        self.results['package_name'] = self.package_info['name']
+        self.results['package_version'] = self.package_info['version']
+
     def package_name(self, path):
         with open(path) as f:
             text = f.read()
             result = self.name_regex.search(text)
 
             if result:
-                return result.groups()[0]
+                name = result.groups()[0]
+                return name
             else:
                 raise ValueError('Package version not defined at: %s' % path)
 
@@ -104,7 +112,8 @@ class Service(BaseService):
             result = self.version_regex.search(text)
 
             if result:
-                return result.groups()[0]
+                version = result.groups()[0]
+                return version
             else:
                 raise ValueError('Package version not defined at: %s' % path)
 
@@ -118,3 +127,4 @@ class Service(BaseService):
 
         with open(path, 'w') as out:
             out.write(text)
+            self.results['package_version'] = version

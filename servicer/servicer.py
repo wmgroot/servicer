@@ -1,6 +1,7 @@
 import os
 import sys
 import importlib
+import pkg_resources
 import json
 import argparse
 import yaml
@@ -10,16 +11,22 @@ from datetime import datetime
 
 from .generate_ci_config import generate_ci_config
 from .topological_order import toposort2
+from .tokens import interpolate_tokens
 from .run import run
 from .git import Git
 from .config_loader import ConfigLoader
 
 class Servicer():
     def __init__(self, args=None):
+        self.version = pkg_resources.get_distribution('servicer').version
         self.run = run
 
         if args == None:
             args = vars(self.load_arguments())
+
+        if 'version' in args and args['version']:
+            print(self.version)
+            sys.exit(0)
 
         self.load_environment(args)
 
@@ -36,6 +43,8 @@ class Servicer():
         self.service_order = self.order_services(self.active_services)
         self.load_steps()
 
+        print('servicer version: %s' % self.version)
+
         if 'generate_ci' in self.config['args'] and self.config['args']['generate_ci']:
             generate_ci_config(config=config, path='.')
             sys.exit(0)
@@ -49,6 +58,7 @@ class Servicer():
         parser.add_argument('--step', help='perform the comma-separated build steps, defaults to all steps')
         parser.add_argument('--no_ignore', action='store_true', help='disables ignoring services through change detection')
         parser.add_argument('--no_tag', action='store_true', help='disables build tagging')
+        parser.add_argument('--version', action='store_true', help='display the package version')
         return parser.parse_args()
 
     def load_environment(self, args):
@@ -458,11 +468,8 @@ class Servicer():
             for service_name in self.service_order:
                 service = self.config['services'][service_name]
 
-                if os.getenv('DEBUG'):
-                    print(service)
-
                 if 'steps' in service and step in service['steps']:
-                    self.print_title('service: %s' % service_name)
+                    self.print_title('step-service: %s:%s' % (step, service_name))
 
                     commands = service['steps'][step].get('commands')
                     if commands:
@@ -471,16 +478,23 @@ class Servicer():
 
                     if 'module' in service and 'config' in service['steps'][step]:
                         config = service['steps'][step].get('config')
+                        # allow interpolation of prior step-service results
+                        interpolate_tokens(config, self.config, ignore_missing_key=True)
 
                         if 'git' in self.config and self.config['git']['enabled']:
                             if 'git' not in config:
                                 config['git'] = {}
                             config['git']['module'] = self.git
 
-                        print('Step Config (%s): ' % step)
+                        print('Config:')
                         print(json.dumps(config, indent=4, sort_keys=True, default=str))
                         adapter = service['module'].Service(config)
-                        adapter.up()
+                        results = adapter.up()
+
+                        if results:
+                            service['steps'][step]['results'] = results
+                            print('results: ')
+                            print(json.dumps(results, indent=4, sort_keys=True, default=str))
 
                     post_commands = service['steps'][step].get('post_commands')
                     if post_commands:
@@ -488,6 +502,7 @@ class Servicer():
                             self.run(c)
 
         self.tag_build()
+        print('\nBuild Complete.')
 
     def get_service_environment(self, branch):
         service_environment = None
@@ -520,42 +535,6 @@ class Servicer():
                 pass
 
         return None
-
-    def up(self):
-        for service_name in self.service_order:
-            print(service_name)
-
-        for service_name in self.service_order:
-            self.up_service(self.config['services'][service_name])
-
-        self.print_title('deploy complete')
-
-    def up_service(self, service):
-        self.print_title('deploy %s' % service['name'])
-
-        service['results'] = {}
-
-        if 'module' in service:
-            adapter = service['module'].Service(config=service['config'])
-            results = adapter.up()
-            if results:
-                self.store_results(service, results)
-        elif 'shell_script' in service:
-            self.run('%s up' % service['shell_script'])
-
-            # clunky way to retrieve results from shell scripts
-            script_results_path = 'shell-script-results.yaml'
-            if os.path.exists(script_results_path):
-                print('loading script results from (%s)' % script_results_path)
-                results = yaml.load(open(script_results_path))
-                self.store_results(service, results)
-                os.remove(script_results_path)
-
-    def store_results(self, service, results):
-        for key, value in results.items():
-            if type(value) == str:
-                os.environ[key.upper()] = value
-        service['results']['up'] = results
 
     def print_title(self, message='', border='----'):
         inner_text = ' %s ' % message
