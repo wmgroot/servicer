@@ -8,8 +8,10 @@ environment:
 git:
   enabled: false
   config:
+    user.email: servicer@aol.com
     user.name: servicer
   diff-tagging-enabled: true
+  fetch-tags: true
   ignore-unchanged: true
   ignore-servicer-commits: false
 

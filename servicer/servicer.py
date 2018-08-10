@@ -28,6 +28,8 @@ class Servicer():
             print(self.version)
             sys.exit(0)
 
+        print('servicer version: %s' % self.version)
+
         self.load_environment(args)
 
         self.config_loader = ConfigLoader(args)
@@ -42,8 +44,6 @@ class Servicer():
         self.active_services = self.load_service_modules()
         self.service_order = self.order_services(self.active_services)
         self.load_steps()
-
-        print('servicer version: %s' % self.version)
 
         if 'generate_ci' in self.config['args'] and self.config['args']['generate_ci']:
             generate_ci_config(config=config, path='.')
@@ -124,6 +124,16 @@ class Servicer():
             return
 
         self.print_title('initializing git integration')
+
+        if 'config' in self.config['git']:
+            for key, value in self.config['git']['config'].items():
+                result = self.run('git config %s' % key)['stdout'].strip()
+                if result == '':
+                    self.run('git config %s "%s"' % (key, value))
+
+        if 'fetch-tags' in self.config['git'] and self.config['git']['fetch-tags']:
+            self.run('git fetch --tags')
+
         git_args = { 'hide_output': 'DEBUG' not in os.environ }
         if 'protocol' in self.config['git']:
             git_args['protocol'] = self.config['git']['protocol']
