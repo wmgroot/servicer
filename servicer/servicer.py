@@ -138,6 +138,7 @@ class Servicer():
         if 'protocol' in self.config['git']:
             git_args['protocol'] = self.config['git']['protocol']
         self.git = Git(**git_args)
+        self.git.config = self.config['git']
 
         if 'GIT_DIFF_REF' in os.environ:
             result = self.run('git cat-file -t %s' % os.environ['GIT_DIFF_REF'], check=False)
