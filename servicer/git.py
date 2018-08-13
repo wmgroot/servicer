@@ -82,14 +82,14 @@ class Git():
             if not result['stdout'].strip():
                 self.run('git config %s "%s"' % (key, value))
 
-    def commit(self, add='.', message=None):
+    def commit(self, add='.', message=None, check_commit=False):
         if not isinstance(add, list):
             add = [add]
 
         for a in add:
             self.run('git add %s' % a)
 
-        self.run('git diff-index --quiet HEAD || git commit -m "%s"' % message)
+        self.run('git commit -m "%s"' % message, check=check_commit)
 
     def push(self, origin='origin', ref=None, local_ref=None, protocol=None, no_verify=False):
         if protocol == None:

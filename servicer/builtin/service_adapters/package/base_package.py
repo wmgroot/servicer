@@ -57,6 +57,10 @@ class Service(BaseService):
                 version=self.package_info['version'],
             )
 
+            if 'changed_files' not in self.results:
+                self.results['changed_files'] = []
+            self.results['changed_files'].append(self.config['package_info']['version_file_path'])
+
             if terminate_on_change:
                 # requests termination of the build after the current step completes
                 os.environ['TERMINATE_BUILD'] = '0'
