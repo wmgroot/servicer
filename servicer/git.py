@@ -91,24 +91,32 @@ class Git():
 
         self.run('git diff-index --quiet HEAD || git commit -m "%s"' % message)
 
-    def push(self, origin='origin', ref=None, local_ref=None, protocol=None):
+    def push(self, origin='origin', ref=None, local_ref=None, protocol=None, no_verify=False):
         if protocol == None:
             protocol = self.protocol
+
+        command = 'git push'
 
         if local_ref:
             ref = '%s:%s' % (ref, local_ref)
 
+        if no_verify:
+            command = '%s --no-verify' % command
+
         if protocol == 'ssh':
-            self.run('git push %s %s' % (origin, ref))
+            command = '%s %s %s' % (command, origin, ref)
         elif protocol == 'https':
-            self.run('git push https://%s:%s@%s %s' % (
+            command = '%s https://%s:%s@%s %s' % (
+                command,
                 os.environ['GIT_USERNAME'],
                 quote_plus(os.environ['GIT_PASSWORD']),
                 os.environ['GIT_REPOSITORY'],
                 ref,
-            ))
+            )
         else:
             raise ValueError('Invalid git push protocol: %s' % protocol)
+
+        self.run(command)
 
     def current_branch(self):
         result = self.run('git rev-parse --abbrev-ref HEAD')

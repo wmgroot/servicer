@@ -61,7 +61,7 @@ class Service(BaseService):
                 # requests termination of the build after the current step completes
                 os.environ['TERMINATE_BUILD'] = '0'
 
-    def commit_and_push_changes(self):
+    def commit_and_push_changes(self, git_no_verify=False):
         commit_args = {
             'message': '[servicer] Automated version change.',
         }
@@ -70,7 +70,7 @@ class Service(BaseService):
             commit_args['add'] = self.config['package_info']['version_file_path']
 
         self.git.commit(**commit_args)
-        self.git.push(ref=os.environ['BRANCH'])
+        self.git.push(ref=os.environ['BRANCH'], no_verify=git_no_verify)
 
     def increment_version(self, version):
         new_version = [int(v) for v in version.split('.')]
