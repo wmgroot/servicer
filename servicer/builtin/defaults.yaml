@@ -14,6 +14,7 @@ git:
   fetch-tags: true
   ignore-unchanged: true
   ignore-servicer-commits: false
+  no-verify: false
 
 steps:
   - name: build

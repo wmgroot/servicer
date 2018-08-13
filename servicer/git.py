@@ -100,7 +100,7 @@ class Git():
         if local_ref:
             ref = '%s:%s' % (ref, local_ref)
 
-        if no_verify:
+        if no_verify or ('no-verify' in self.config and self.config['no-verify']):
             command = '%s --no-verify' % command
 
         if protocol == 'ssh':
