@@ -3,6 +3,8 @@ import sys
 import hashlib
 import requests
 from requests.auth import HTTPBasicAuth
+from urllib.parse import quote
+
 from ..base_service import BaseService
 
 class Service(BaseService):
@@ -153,3 +155,37 @@ class Service(BaseService):
         )
         response.raise_for_status
         print(response.text)
+
+    def ensure_permissions(self, name=None, repositories=[]):
+        if not isinstance(name, list):
+            name = [name]
+
+        for n in name:
+            print('ensuring repository permissions for: %s' % n)
+
+            url = '%s/api/security/permissions/%s' % (self.endpoint, quote(n))
+            response = requests.get(url, auth=HTTPBasicAuth(self.username, self.password))
+            response.raise_for_status()
+
+            permission = response.json()
+            existing_repositories = set(permission['repositories'])
+            new_repositories = set(permission['repositories']) | set(repositories)
+
+            if existing_repositories == new_repositories:
+                print('permissions up to date')
+            else:
+                print('old repository permissions: %s' % existing_repositories)
+                print('new repository permissions: %s' % new_repositories)
+
+                permission['repositories'] = list(new_repositories)
+                print(permission)
+                response = requests.put(
+                    url,
+                    auth=HTTPBasicAuth(self.username, self.password),
+                    headers={
+                        'Content-Type': 'application/json',
+                    },
+                    json=permission,
+                )
+                response.raise_for_status
+                print(response.text)
