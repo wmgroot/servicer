@@ -160,7 +160,17 @@ class Servicer():
                 if len(self.build_tags) > 0:
                     self.config['git']['diff-ref'] = self.build_tags[-1]
 
-            if 'default-branch' in self.config['git'] and 'diff-ref' not in self.config['git']:
+            if 'diff-defaults-to-latest-tag' in self.config['git'] and self.config['git']['diff-defaults-to-latest-tag'] and 'diff-ref' not in self.config['git']:
+                result = self.run('git describe --tags --abbrev=0 --match "servicer-*" HEAD', check=False)
+
+                if result['status'] == 0:
+                    latest_tag = result['stdout'].strip()
+                    if latest_tag:
+                        print('defaulting to latest servicer git tag')
+                        self.config['git']['diff-ref'] = latest_tag
+
+            # TODO: remove this feature in next breaking update
+            if 'default-branch' in self.config['git'] and self.config['git']['default-branch'] and 'diff-ref' not in self.config['git']:
                 if os.environ['BRANCH'] != self.config['git']['default-branch']:
                     print('defaulting Git Diff Ref to default-branch')
                     self.config['git']['diff-ref'] = 'origin/%s' % self.config['git']['default-branch']

@@ -10,6 +10,8 @@ git:
   config:
     user.email: servicer@aol.com
     user.name: servicer
+  default-branch: null
+  diff-defaults-to-latest-tag: true
   diff-tagging-enabled: true
   fetch-tags: true
   ignore-unchanged: true
