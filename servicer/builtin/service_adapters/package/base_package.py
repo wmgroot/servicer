@@ -66,6 +66,10 @@ class Service(BaseService):
                 os.environ['TERMINATE_BUILD'] = '0'
 
     def commit_and_push_changes(self, git_no_verify=False):
+        if 'BRANCH' not in os.environ:
+            print('No BRANCH defined, skipping commit and push.')
+            return
+
         commit_args = {
             'message': '[servicer] Automated version change.',
         }

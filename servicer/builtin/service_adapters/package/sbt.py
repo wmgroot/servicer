@@ -10,9 +10,12 @@ class Service(BasePackageService):
         self.sbt_credentials_path = os.getenv('SBT_CREDENTIALS_PATH', '%s/.sbt/.credentials' % os.environ['HOME'])
 
         self.name_regex = re.compile('name\s*:=\s*[\'\"]+(.*?)[\'\"]+')
-        self.version_regex = re.compile('version in ThisBuild := [\'\"]+(\d+\.\d+\.\d+\.*\d*)[\'\"]+')
-        self.scala_version_regex = re.compile('val scala = [\'\"]+(\d+\.\d+\.\d+)[\'\"]+')
+        self.version_regex = re.compile('version(?: in ThisBuild)? := [\'\"]+(\d+\.\d+\.\d+\.*\d*)[\'\"]+')
+        self.scala_version_regex = re.compile('(?:val )?scala(?:Version)?\s+:?= [\'\"]+(\d+\.\d+\.\d+)[\'\"]+')
         self.package_version_format = 'version in ThisBuild := "%s"'
+
+        if 'package_file_path' in self.config['package_info'] and 'scala_version_file_path' not in self.config['package_info']:
+             self.config['package_info']['scala_version_file_path'] = self.config['package_info']['package_file_path']
 
     def generate_sbt_credentials(self, credentials=None):
         if credentials:
@@ -46,7 +49,7 @@ class Service(BasePackageService):
             if result:
                 return result.groups()[0]
             else:
-                raise ValueError('Package version not defined at: %s' % path)
+                raise ValueError('Scala version not defined at: %s' % path)
 
     # only works with Artifactory :(
     def get_existing_versions(self, **package_info):

@@ -3,6 +3,7 @@ from .gcloud_service import GCloudService
 import os
 import time
 import yaml
+import json
 
 class Service(GCloudService):
     def up(self):
@@ -10,10 +11,19 @@ class Service(GCloudService):
 
         self.cluster_name = self.config['cluster_name']
 
+        if 'project' in self.config:
+            self.run('gcloud config set project %s' % self.config['project'])
+        if 'compute_zone' in self.config:
+            self.run('gcloud config set compute/zone %s' % self.config['compute_zone'])
+
         self.ensure_cluster(self.cluster_name)
 
         if 'cluster_configs' in self.config:
-            for config in self.config['cluster_configs']:
+            configs = self.config['cluster_configs']
+            if not isinstance(configs, list):
+                configs = [configs]
+
+            for config in configs:
                 self.apply(config)
 
         if 'wait_for_pending' in self.config:
@@ -21,20 +31,25 @@ class Service(GCloudService):
             if isinstance(self.config['wait_for_pending'], dict):
                 args = self.config['wait_for_pending']
 
-            self.wait_for_pending(**args)
+            self.wait_for_pending_services(**args)
 
-    def ensure_cluster(self, cluster_name):
+    def ensure_cluster(self, cluster_name=None):
         print('ensuring cluster: %s' % cluster_name)
         self.run('gcloud container clusters create %s || true' % cluster_name)
         self.run('gcloud container clusters get-credentials %s' % cluster_name)
         print('cluster ready: %s' % cluster_name)
 
     def apply(self, config):
-        with open('file.yaml', 'w') as outfile:
-            yaml.dump(config, outfile, default_flow_style=False)
+        try:
+            print('applying kube config:')
+            print(json.dumps(config, indent=2, sort_keys=True, default=str))
 
-        self.run('kubectl apply -f file.yaml')
-        os.remove('file.yaml')
+            with open('file.yaml', 'w') as outfile:
+                yaml.dump(config, outfile, default_flow_style=False)
+
+            self.run('kubectl apply -f file.yaml')
+        finally:
+            os.remove('file.yaml')
 
     def wait_for_pending_services(self, **args):
         max_wait = args.get('max_wait', 300)

@@ -58,6 +58,7 @@ class Servicer():
         parser.add_argument('--step', help='perform the comma-separated build steps, defaults to all steps')
         parser.add_argument('--no_ignore', action='store_true', help='disables ignoring services through change detection')
         parser.add_argument('--no_tag', action='store_true', help='disables build tagging')
+        parser.add_argument('--no_auth', action='store_true', help='disables build authentication, useful if you are already authenticated locally')
         parser.add_argument('--version', action='store_true', help='display the package version')
         return parser.parse_args()
 
@@ -355,6 +356,10 @@ class Servicer():
         return matches, unmatches
 
     def try_initialize_provider(self, provider_name, service):
+        if 'no_auth' in self.config['args'] and self.config['args']['no_auth']:
+            print('skipping provider initialization for %s (no_auth enabled, assuming already authenticated)' % provider_name)
+            return
+
         provider = self.config['providers'].get(provider_name)
 
         if provider == None:
