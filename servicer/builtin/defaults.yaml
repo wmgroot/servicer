@@ -1,4 +1,5 @@
 environment:
+  # adjust these settings to control which branches map to service environments
   mappings:
     - branch: master
       environment: production
@@ -6,17 +7,41 @@ environment:
     - branch: env-*
 
 git:
+  # enable servicer git integration
   enabled: false
+
+  # General Git Settings
+
+  # if BRANCH env var is not set, use git to determine the current branch
+  auto-set-branch: true
+  # if COMMIT env var is not set, use git to determine the current commit
+  auto-set-commit: true
+
+  # short form commit minimum length
+  commit-min-length: 10
+
+  # git config default values
   config:
     user.email: servicer@aol.com
     user.name: servicer
-  default-branch: null
-  diff-defaults-to-latest-tag: true
-  diff-tagging-enabled: true
-  fetch-tags: true
-  ignore-unchanged: true
-  ignore-servicer-commits: false
+
+  # use the --no-verify option when git pushing, useful when dealing with git-lfs
   no-verify: false
+
+  # Change Detection Settings
+
+  # if you use a single fixed integration branch, you can hard code it here
+  default-branch: null
+  # allow servicer to detect changes between tags from other branches
+  diff-defaults-to-latest-tag: true
+  # use automated servicer git tagging to power change detection, useful for monorepos
+  diff-tagging-enabled: true
+  # fetch existing tags at the start of the build, some CI providers do this for you
+  fetch-tags: true
+  # enable to skip running steps for services with no changes
+  ignore-unchanged: true
+  # enable to have servicer disregard commits made by servicer for change detection
+  ignore-servicer-commits: false
 
 steps:
   - name: build

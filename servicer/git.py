@@ -118,8 +118,20 @@ class Git():
 
         self.run(command)
 
-    def current_branch(self):
-        result = self.run('git rev-parse --abbrev-ref HEAD')
+    def current_branch(self, ref='HEAD'):
+        command = 'git rev-parse --abbrev-ref %s' % ref
+        result = self.run(command)
+        return result['stdout'].strip()
+
+    def current_commit(self, min_length=None, verify=False, ref='HEAD'):
+        command = 'git rev-parse'
+        if min_length:
+            command = '%s --short=%s' % (command, min_length)
+        if verify:
+            command = '%s --verify' % command
+        command = '%s %s' % (command, ref)
+
+        result = self.run(command)
         return result['stdout'].strip()
 
     def author_for_ref(self, ref=None):

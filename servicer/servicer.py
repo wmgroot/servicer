@@ -126,6 +126,24 @@ class Servicer():
 
         self.print_title('initializing git integration')
 
+        git_args = { 'hide_output': 'DEBUG' not in os.environ }
+        if 'protocol' in self.config['git']:
+            git_args['protocol'] = self.config['git']['protocol']
+        self.git = Git(**git_args)
+        self.git.config = self.config['git']
+
+        if 'auto-set-branch' in self.config['git'] and self.config['git']['auto-set-branch']:
+            if 'BRANCH' not in os.environ:
+                os.environ['BRANCH'] = self.git.current_branch()
+
+        if 'auto-set-commit' in self.config['git'] and self.config['git']['auto-set-commit']:
+            if 'COMMIT_SHORT' not in os.environ:
+                os.environ['COMMIT_SHORT'] = self.git.current_commit(min_length=self.config['git']['commit-min-length'])
+            if 'COMMIT_LONG' not in os.environ:
+                os.environ['COMMIT_LONG'] = self.git.current_commit()
+            if 'COMMIT' not in os.environ:
+                os.environ['COMMIT'] = os.environ['COMMIT_SHORT']
+
         if 'config' in self.config['git']:
             for key, value in self.config['git']['config'].items():
                 result = self.run('git config %s' % key, check=False)['stdout'].strip()
@@ -134,12 +152,6 @@ class Servicer():
 
         if 'fetch-tags' in self.config['git'] and self.config['git']['fetch-tags']:
             self.run('git fetch --tags')
-
-        git_args = { 'hide_output': 'DEBUG' not in os.environ }
-        if 'protocol' in self.config['git']:
-            git_args['protocol'] = self.config['git']['protocol']
-        self.git = Git(**git_args)
-        self.git.config = self.config['git']
 
         if 'GIT_DIFF_REF' in os.environ:
             result = self.run('git cat-file -t %s' % os.environ['GIT_DIFF_REF'], check=False)
