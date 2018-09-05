@@ -75,6 +75,14 @@ class MapServiceEnvironmentTest(ServicerTest):
         ])
         self.assertEqual(result, None)
 
+    def test_no_match_but_starts_with_branch(self):
+        result = self.servicer.map_service_environment('master_branch', [
+            { 'branch': 'master', 'environment': 'production' },
+            { 'branch': 'develop' },
+            { 'branch': 'env-*' },
+        ])
+        self.assertEqual(result, None)
+
     def test_multiple_match(self):
         result = self.servicer.map_service_environment('env-my-branch-qa', [
             { 'branch': 'master', 'environment': 'production' },

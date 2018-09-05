@@ -563,9 +563,12 @@ class Servicer():
                 if m['branch'].startswith('/') and m['branch'].endswith('/'):
                     regex = m['branch'][1:-1]
                 else:
-                    regex = m['branch'].replace('*', '.*')
+                    regex = '^%s$' % m['branch'].replace('*', '.*')
 
+                print(regex)
+                print(branch)
                 result = re.match(regex, branch)
+                print(result)
                 if result:
                     return m.get('environment', branch)
             elif 'tag' in m:
