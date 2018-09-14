@@ -55,6 +55,7 @@ class Servicer():
         parser.add_argument('--service', help='deploy only the provided service')
         parser.add_argument('--services_file', default='services.yaml', help='custom path to your services config file (default is services.yaml)')
         parser.add_argument('--servicer_config_path', default='%s/.servicer' % os.getcwd(), help='path to your servicer directory (default is ./servicer)')
+        parser.add_argument('--env_file_paths', default='~/.servicer/.env.yaml:%s/.env.yaml' % os.getcwd(), help='paths to your local .env files, colon-separated')
         parser.add_argument('--step', help='perform the comma-separated build steps, defaults to all steps')
         parser.add_argument('--no_ignore', action='store_true', help='disables ignoring services through change detection')
         parser.add_argument('--no_tag', action='store_true', help='disables build tagging')
@@ -67,17 +68,19 @@ class Servicer():
         os.environ['BUILD_DATETIME'] = str(datetime.utcnow())
         os.environ['BUILD_DATE'] = datetime.now().strftime('%Y-%m-%d')
 
-        if 'servicer_config_path' not in args:
+        if 'env_file_paths' not in args:
             return
 
-        env_file = '%s/.env.yaml' % args['servicer_config_path']
+        for path in args['env_file_paths'].split(':'):
+            self.load_env_file(path)
 
-        print('checking for (.env.yaml) at (%s)' % env_file)
-        if os.path.exists(env_file):
-
+    def load_env_file(self, path):
+        print('checking for (.env.yaml) at (%s)' % path)
+        if os.path.exists(path):
             print('(.env.yaml) found, including these arguments:')
 
-            yaml_dict = yaml.load(open(env_file))
+            yaml_dict = yaml.load(open(path))
+            print(yaml_dict)
             for key, value in yaml_dict.items():
                 os.environ[key] = value
                 print(key)

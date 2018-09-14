@@ -70,6 +70,10 @@ class Service(BaseService):
             print('No BRANCH defined, skipping commit and push.')
             return
 
+        if self.git.protocol == 'https' and 'GIT_USERNAME' not in os.environ:
+            print('No GIT_USERNAME defined, skipping commit and push.')
+            return
+
         commit_args = {
             'message': '[servicer] Automated version change.',
         }

@@ -1,4 +1,6 @@
 from unittest import TestCase, mock
+import os
+from datetime import datetime
 
 from servicer.servicer import Servicer
 
@@ -15,6 +17,53 @@ class ServicerTest(TestCase):
 class ServicerClassTest(ServicerTest):
     def test_initialized(self):
         pass
+
+class LoadEnvironmentTest(ServicerTest):
+    def setUp(self):
+        super().setUp()
+
+        self.servicer.load_env_file = mock.Mock(return_value=None)
+
+        self.args = {}
+
+    def test_environment_variables_set(self):
+        os.environ['PWD'] = 'project_path'
+        result = self.servicer.load_environment(self.args)
+        self.assertEqual(os.environ['PROJECT_PATH'], 'project_path')
+        self.assertEqual(os.environ['BUILD_DATETIME'].split(' ')[0], datetime.now().strftime('%Y-%m-%d'))
+        self.assertEqual(os.environ['BUILD_DATE'], datetime.now().strftime('%Y-%m-%d'))
+
+    def test_no_env_file_paths(self):
+        result = self.servicer.load_environment(self.args)
+        self.servicer.load_env_file.assert_not_called()
+
+    def test_multiple_env_file_paths(self):
+        self.args['env_file_paths'] = 'path/one:path/two'
+        result = self.servicer.load_environment(self.args)
+        print(self.servicer.load_env_file.mock.calls)
+        self.servicer.load_env_file.assert_has_calls([
+            mock.call('path/one'),
+            mock.call('path/two'),
+        ])
+
+class LoadEnvFileTest(ServicerTest):
+    def setUp(self):
+        super().setUp()
+
+    def test_path_does_not_exist(self):
+        with mock.patch('builtins.open', create=True) as mock_open:
+            result = self.servicer.load_env_file('fake/path.yaml')
+            mock_open.assert_not_called()
+
+    def test_valid_env_file_path(self):
+        with mock.patch('yaml.load', create=True) as mock_yaml_load:
+            with mock.patch('builtins.open', create=True) as mock_open:
+                with mock.patch('os.path.exists', create=True) as mock_os_path_exists:
+                    mock_yaml_load.return_value = {'FOO': 'BAR'}
+                    mock_os_path_exists.return_value = True
+
+                    result = self.servicer.load_env_file('real/path.yaml')
+                    self.assertEqual(os.environ['FOO'], 'BAR')
 
 class GetServiceEnvironmentTest(ServicerTest):
     def setUp(self):
