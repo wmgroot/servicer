@@ -55,7 +55,7 @@ class Servicer():
         parser.add_argument('--service', help='deploy only the provided service')
         parser.add_argument('--services_file', default='services.yaml', help='custom path to your services config file (default is services.yaml)')
         parser.add_argument('--servicer_config_path', default='%s/.servicer' % os.getcwd(), help='path to your servicer directory (default is ./servicer)')
-        parser.add_argument('--env_file_paths', default='~/.servicer/.env.yaml:%s/.env.yaml' % os.getcwd(), help='paths to your local .env files, colon-separated')
+        parser.add_argument('--env_file_paths', default='%s/.servicer/.env.yaml:%s/.servicer/.env.yaml' % (os.getenv('HOME'), os.getcwd()), help='paths to your local .env files, colon-separated')
         parser.add_argument('--step', help='perform the comma-separated build steps, defaults to all steps')
         parser.add_argument('--no_ignore', action='store_true', help='disables ignoring services through change detection')
         parser.add_argument('--no_tag', action='store_true', help='disables build tagging')
