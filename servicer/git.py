@@ -89,7 +89,7 @@ class Git():
         for a in add:
             self.run('git add %s' % a)
 
-        self.run('git commit -m "%s"' % message, check=check_commit)
+        return self.run('git commit -m "%s"' % message, check=check_commit)
 
     def push(self, origin='origin', ref=None, local_ref=None, protocol=None, no_verify=False):
         if protocol == None:
@@ -116,7 +116,7 @@ class Git():
         else:
             raise ValueError('Invalid git push protocol: %s' % protocol)
 
-        self.run(command)
+        return self.run(command)
 
     def current_branch(self, ref='HEAD'):
         command = 'git rev-parse --abbrev-ref %s' % ref

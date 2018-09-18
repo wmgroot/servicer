@@ -30,7 +30,7 @@ class Service(BaseService):
         for step in steps:
             getattr(self, step['type'])(**step.get('args', {}))
 
-    def set_auto_version(self, max_increment=10, terminate_on_change=True):
+    def set_auto_version(self, max_increment=10):
         print('auto-versioning...')
         self.read_package_info(self.config['package_info'])
 
@@ -61,11 +61,7 @@ class Service(BaseService):
                 self.results['changed_files'] = []
             self.results['changed_files'].append(self.config['package_info']['version_file_path'])
 
-            if terminate_on_change:
-                # requests termination of the build after the current step completes
-                os.environ['TERMINATE_BUILD'] = '0'
-
-    def commit_and_push_changes(self, git_no_verify=False):
+    def commit_and_push_changes(self, git_no_verify=False, terminate_on_change=False):
         if 'BRANCH' not in os.environ:
             print('No BRANCH defined, skipping commit and push.')
             return
@@ -81,8 +77,12 @@ class Service(BaseService):
         if 'version_file_path' in self.config['package_info']:
             commit_args['add'] = self.config['package_info']['version_file_path']
 
-        self.git.commit(**commit_args)
-        self.git.push(ref=os.environ['BRANCH'], no_verify=git_no_verify)
+        commit_result = self.git.commit(**commit_args)
+        push_result = self.git.push(ref=os.environ['BRANCH'], no_verify=git_no_verify)
+
+        if terminate_on_change and commit_result['status'] == 0:
+            # requests termination of the build after the current step completes
+            os.environ['TERMINATE_BUILD'] = '0'
 
     def increment_version(self, version):
         new_version = [int(v) for v in version.split('.')]
