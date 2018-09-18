@@ -19,6 +19,8 @@ class AuthAdapter(BaseAuthAdapter):
         self.run('gcloud auth activate-service-account --key-file %s' % key_file_path)
         self.run('rm %s' % key_file_path)
 
+        self.run('gcloud auth configure-docker -q')
+
         self.run('gcloud config set project %s' % project)
         self.run('gcloud config set compute/zone %s' % compute_zone)
 
