@@ -18,8 +18,12 @@ from .config_loader import ConfigLoader
 
 class Servicer():
     def __init__(self, args=None):
+        self.datetime = datetime
+
         self.version = pkg_resources.get_distribution('servicer').version
         self.run = run
+        self.toposort2 = toposort2
+        self.interpolate_tokens = interpolate_tokens
 
         if args == None:
             args = vars(self.load_arguments())
@@ -41,9 +45,9 @@ class Servicer():
 
         self.git_init()
 
-        self.active_services = self.load_service_modules()
-        self.service_order = self.order_services(self.active_services)
         self.load_steps()
+        self.active_services = self.load_service_modules()
+        self.service_step_order = self.order_service_steps(self.active_services)
 
         if 'generate_ci' in self.config['args'] and self.config['args']['generate_ci']:
             generate_ci_config(config=config, path='.')
@@ -65,8 +69,8 @@ class Servicer():
 
     def load_environment(self, args):
         os.environ['PROJECT_PATH'] = os.environ['PWD']
-        os.environ['BUILD_DATETIME'] = str(datetime.utcnow())
-        os.environ['BUILD_DATE'] = datetime.now().strftime('%Y-%m-%d')
+        os.environ['BUILD_DATETIME'] = str(self.datetime.utcnow())
+        os.environ['BUILD_DATE'] = self.datetime.now().strftime('%Y-%m-%d')
 
         if 'env_file_paths' not in args:
             return
@@ -122,6 +126,38 @@ class Servicer():
         if self.service_environment:
             os.environ['SERVICE_ENVIRONMENT'] = self.service_environment
             print(os.environ['SERVICE_ENVIRONMENT'])
+
+    def get_service_environment(self, branch):
+        service_environment = None
+        if 'environment' not in self.config or 'mappings' not in self.config['environment']:
+            return service_environment
+
+        mappings = self.config['environment']['mappings']
+        service_environment = self.map_service_environment(branch, mappings)
+
+        if service_environment:
+            for ch in ['\\', '/', '_']:
+                if ch in service_environment:
+                    service_environment = service_environment.replace(ch, '-')
+
+        return service_environment
+
+    def map_service_environment(self, branch, mappings=[]):
+        for m in mappings:
+            if 'branch' in m:
+                if m['branch'].startswith('/') and m['branch'].endswith('/'):
+                    regex = m['branch'][1:-1]
+                else:
+                    regex = '^%s$' % m['branch'].replace('*', '.*')
+
+                result = re.match(regex, branch)
+                if result:
+                    return m.get('environment', branch)
+            elif 'tag' in m:
+                # TODO: support tag mapping
+                pass
+
+        return None
 
     def git_init(self):
         if not 'git' in self.config or not self.config['git']['enabled']:
@@ -299,7 +335,6 @@ class Servicer():
             print('No GIT_DIFF_REF found, aborting change detection.')
             return
 
-        # self.git.fetch()
         diff_files = self.git.diff(self.config['git']['diff-ref'], name_only=True, merge_base=True)
         print('\nChanged Files:')
         print('\n'.join(diff_files))
@@ -453,23 +488,98 @@ class Servicer():
         print('no module found!')
         sys.exit(1)
 
-    # TODO: handle step-service level dependencies
-    def order_services(self, services):
+    def order_service_steps(self, services):
         dependencies = {}
         for service_name in services:
             service = self.config['services'][service_name]
-            if 'depends_on' in service:
-                # only add dependencies that are in the current list of services
-                dependencies[service_name] = set()
-                for dep in service['depends_on']:
-                    if dep in services:
-                        dependencies[service_name].add(dep)
-                # dependencies[service_name] = set(service['depends_on'])
-            else:
-                dependencies[service_name] = set()
+            service_deps = self.calculate_service_dependencies(service)
+            dependencies = {**dependencies, **service_deps}
 
-        ordered_services = toposort2(dependencies)
-        return [item for sublist in ordered_services for item in sublist]
+        print('Dependency Graph:')
+        print(json.dumps(dependencies, indent=4, sort_keys=True, default=str))
+        return self.toposort2(dependencies)
+
+    def calculate_service_dependencies(self, service):
+        dependencies = {}
+
+        previous_step = None
+        for step_name in self.step_order:
+            if step_name not in service['steps']:
+                continue
+
+            # default step based dependencies
+            if previous_step:
+                service_step = '%s:%s' % (service['name'], step_name)
+                dependency = '%s:%s' % (service['name'], previous_step)
+                self.add_dependencies(dependencies, service, step_name, dependency, persistent_steps=True)
+
+            previous_step = step_name
+
+            # step level user-defined custom dependencies
+            if 'depends_on' in service['steps'][step_name]:
+                self.add_dependencies(dependencies, service, step_name, service['steps'][step_name]['depends_on'])
+
+            # service level user-defined custom dependencies
+            if 'depends_on' in service:
+                self.add_dependencies(dependencies, service, step_name, service['depends_on'])
+
+        return dependencies
+
+    # TODO: might refactor dependency management to something like this in the future
+    # def calculate_service_step_dependencies(self, service, step_name):
+    #     dependencies = set()
+    #
+    #     # add default step based dependencies
+    #     start_index = self.step_order.index(step_name)
+    #     if start_index > 0:
+    #         for i in range(start_index - 1, -1, -1):   # iterate backward from nth - 1 to 0th step
+    #             step_dependency = self.step_order[i]
+    #             if step_dependency in service['steps']:
+    #                 dependencies.add('%s:%s' % (service['name'], step_dependency))
+
+    def add_dependencies(self, dependencies, service, step_name, depends_on, persistent_steps=False):
+        if not depends_on:
+            return
+
+        service_step = '%s:%s' % (service['name'], step_name)
+
+        if service_step not in dependencies:
+            dependencies[service_step] = set()
+
+        if not isinstance(depends_on, list):
+            depends_on = [depends_on]
+
+        for dep in depends_on:
+            dep_pieces = dep.split(':')
+            service_dependency = dep_pieces[0]
+
+            step_dependency = None
+            if len(dep_pieces) > 1:
+                step_dependency = dep_pieces[1]
+
+            # skip "persists: true" steps as dependencies unless persistent_steps=True
+            if not persistent_steps:
+                p_step = step_dependency or step_name
+                if p_step in self.steps and 'config' in self.steps[p_step] and 'persists' in self.steps[p_step]['config'] and self.steps[p_step]['config']['persists']:
+                    continue
+
+            if service_dependency == '*':
+                for _service_name in self.active_services:
+                    if step_dependency in self.config['services'][_service_name]['steps']:
+                        dependencies[service_step].add('%s:%s' % (_service_name, step_dependency))
+                continue
+            elif service_dependency not in self.config['services']:
+                msg = 'Invalid service dependency specified: %s, "%s" must be included in services: [%s]' % (dep, service_dependency, ','.join(self.config['services'].keys()))
+                raise ValueError(msg)
+
+            if step_dependency:
+                if step_dependency in self.steps:
+                    dependencies[service_step].add('%s:%s' % (service_dependency, step_dependency))
+                else:
+                    msg = 'Invalid step dependency specified: %s, "%s" must be included in steps: [%s]' % (dep, step_dependency, ','.join(self.steps.keys()))
+                    raise ValueError(msg)
+            else:
+                dependencies[service_step].add('%s:%s' % (service_dependency, step_name))
 
     def load_steps(self):
         self.steps = {}
@@ -482,103 +592,77 @@ class Servicer():
         if 'step' in self.config['args'] and self.config['args']['step']:
             self.step_order = self.config['args']['step'].split(',')
 
-    def run_steps(self):
-        self.print_title('running service steps')
-        print('\n'.join(self.step_order))
-        print()
-        print('\n'.join(self.service_order))
+        self.step_order_reversed = reversed(self.step_order)
 
-        for step in self.step_order:
-            # TODO: rethink and standardize this process
+    def run_service_steps(self):
+        self.print_title('running service steps')
+        print(json.dumps(self.service_step_order, indent=4))
+        print()
+
+        service_steps = [item for sublist in self.service_step_order for item in sublist]
+
+        for service_step_name in service_steps:
+            ss_pieces = service_step_name.split(':')
+            service_name = ss_pieces[0]
+            step_name = ss_pieces[1]
+
+            self.print_title('service-step: %s:%s' % (service_name, step_name))
+
+            step = self.steps[step_name]
+            service = self.config['services'][service_name]
+            service_step = service['steps'][step_name]
+
+            if os.getenv('DEBUG'):
+                print('step:')
+                print(json.dumps(step, indent=4, sort_keys=True, default=str))
+                print()
+                print('service_step:')
+                print(json.dumps(service_step, indent=4, sort_keys=True, default=str))
+                print()
+
+            if 'config' in step and 'requires_service_environment' in step['config']:
+                if step['config']['requires_service_environment'] and self.service_environment == None:
+                    print('skipping, no valid service environment found for step: %s' % step_name)
+                    continue
+
+            self.run_service_step(service, service_step)
+
+            # TODO: rethink and standardize this termination process
             if 'TERMINATE_BUILD' in os.environ:
                 print('build termination requested, stopping with code: %s' % os.environ['TERMINATE_BUILD'])
                 sys.exit(int(os.environ['TERMINATE_BUILD']))
 
-            self.print_title('%s step' % step)
-
-            if step in self.steps and 'config' in self.steps[step]:
-                step_config = self.steps[step]['config']
-
-                if os.getenv('DEBUG'):
-                    print(step_config)
-
-                if 'requires_service_environment' in step_config and step_config['requires_service_environment'] and self.service_environment == None:
-                    print('skipping, no valid service environment found for step: %s' % step)
-                    continue
-
-            for service_name in self.service_order:
-                service = self.config['services'][service_name]
-
-                if 'steps' in service and step in service['steps']:
-                    self.print_title('step-service: %s:%s' % (step, service_name))
-
-                    commands = service['steps'][step].get('commands')
-                    if commands:
-                        for c in commands:
-                            self.run(c)
-
-                    if 'module' in service and 'config' in service['steps'][step]:
-                        config = service['steps'][step].get('config')
-                        # allow interpolation of prior step-service results
-                        interpolate_tokens(config, self.config, ignore_missing_key=True)
-
-                        if 'git' in self.config and self.config['git']['enabled']:
-                            if 'git' not in config:
-                                config['git'] = {}
-                            config['git']['module'] = self.git
-
-                        print('Config:')
-                        print(json.dumps(config, indent=4, sort_keys=True, default=str))
-                        adapter = service['module'].Service(config)
-                        results = adapter.up()
-
-                        if results:
-                            service['steps'][step]['results'] = results
-                            print('results: ')
-                            print(json.dumps(results, indent=4, sort_keys=True, default=str))
-
-                    post_commands = service['steps'][step].get('post_commands')
-                    if post_commands:
-                        for c in post_commands:
-                            self.run(c)
-
         self.tag_build()
         print('\nBuild Complete.')
 
-    def get_service_environment(self, branch):
-        service_environment = None
-        if 'environment' not in self.config or 'mappings' not in self.config['environment']:
-            return service_environment
+    def run_service_step(self, service, service_step):
+        commands = service_step.get('commands')
+        if commands:
+            for c in commands:
+                self.run(c)
 
-        mappings = self.config['environment']['mappings']
-        service_environment = self.map_service_environment(branch, mappings)
+        if 'module' in service and 'config' in service_step:
+            config = service_step.get('config')
+            # allow value interpolation of prior step-service results
+            self.interpolate_tokens(config, self.config, ignore_missing_key=True)
 
-        if service_environment:
-            for ch in ['\\', '/', '_']:
-                if ch in service_environment:
-                    service_environment = service_environment.replace(ch, '-')
+            if 'git' in self.config and self.config['git']['enabled']:
+                if 'git' not in config:
+                    config['git'] = {}
+                config['git']['module'] = self.git
 
-        return service_environment
+            adapter = service['module'].Service(config)
+            results = adapter.up()
 
-    def map_service_environment(self, branch, mappings=[]):
-        for m in mappings:
-            if 'branch' in m:
-                if m['branch'].startswith('/') and m['branch'].endswith('/'):
-                    regex = m['branch'][1:-1]
-                else:
-                    regex = '^%s$' % m['branch'].replace('*', '.*')
+            if results:
+                service_step['results'] = results
+                print('results: ')
+                print(json.dumps(results, indent=4, sort_keys=True, default=str))
 
-                print(regex)
-                print(branch)
-                result = re.match(regex, branch)
-                print(result)
-                if result:
-                    return m.get('environment', branch)
-            elif 'tag' in m:
-                # TODO: support tag mapping
-                pass
-
-        return None
+        post_commands = service_step.get('post_commands')
+        if post_commands:
+            for c in post_commands:
+                self.run(c)
 
     def print_title(self, message='', border='----'):
         inner_text = ' %s ' % message
@@ -594,7 +678,7 @@ class Servicer():
         print()
 
 def main():
-    Servicer().run_steps()
+    Servicer().run_service_steps()
 
 if __name__ == '__main__':
     main()

@@ -48,4 +48,5 @@ steps:
   - name: test
   - name: deploy
     config:
+      persists: true
       requires_service_environment: true
