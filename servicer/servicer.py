@@ -493,7 +493,7 @@ class Servicer():
         for service_name in services:
             service = self.config['services'][service_name]
             service_deps = self.calculate_service_dependencies(service)
-            dependencies = {**dependencies, **service_deps}
+            dependencies.update(service_deps)
 
         print('Dependency Graph:')
         print(json.dumps(dependencies, indent=4, sort_keys=True, default=str))

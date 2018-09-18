@@ -28,7 +28,7 @@ setup(
     long_description = read('README.md'),
     name = 'servicer',
     packages = find_packages(),
-    python_requires = '>=3.6',
+    python_requires = '>=3.5',
     url = 'https://github.com/wmgroot/servicer',
-    version = '0.7.0',
+    version = '0.7.1',
 )
