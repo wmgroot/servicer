@@ -468,6 +468,11 @@ class RunServiceStepTest(ServicerTest):
         self.Service = mock.Mock(return_value=self.adapter)
         self.module = self.AutoMock(Service=self.Service)
 
+        def mock_load_service_module(service):
+            service['module'] = self.module
+
+        self.servicer.load_service_module = mock.Mock(side_effect=mock_load_service_module)
+
         self.service = {
             'module': self.module,
             'name': 'service_1',
@@ -490,8 +495,11 @@ class RunServiceStepTest(ServicerTest):
 
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
+        self.servicer.load_service_module.assert_called_with(self.service)
+
         self.servicer.run.assert_not_called()
-        self.servicer.interpolate_tokens.assert_not_called()
+        self.servicer.interpolate_tokens.assert_called_with(self.service['steps']['build']['config'], self.servicer.config, ignore_missing_key=True)
+        self.assertEqual(self.service['steps']['build']['results'], 'service-step results')
 
     def test_runs_a_service_step_with_module_and_no_config(self):
         self.service['steps']['build'].pop('config')
