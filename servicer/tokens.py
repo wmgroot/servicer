@@ -15,6 +15,10 @@ def interpolate_tokens(config, params, ignore_missing_key=False):
                 interpolate_tokens(config[i], params, ignore_missing_key)
 
 def replace_tokens(value, params, ignore_missing_key=False):
+    escaped_values = [
+        '*',
+    ]
+
     for match in re.findall(r'\${.+?}+', value):
         token = match[2:-1]
         replace_value = None
@@ -34,6 +38,10 @@ def replace_tokens(value, params, ignore_missing_key=False):
             replace_value = params[key]
 
         if replace_value != None:
+            for ev in escaped_values:
+                if ev in token:
+                    token = token.replace(ev, '\%s' % ev)
+
             value = re.sub(r'\${%s}' % token, replace_value, value)
 
     return value
