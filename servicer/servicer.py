@@ -294,8 +294,7 @@ class Servicer():
             service['config'] = {}
 
         if 'service_type' not in service:
-            msg = 'Invalid service dependency specified: %s, "%s" must be included in services: [%s]' % (dep, service_dependency, ','.join(self.config['services'].keys()))
-            raise ValueError(msg)
+            return
 
         adapter_name = service['service_type']
         adapter_path = service['service_type']
