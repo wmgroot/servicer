@@ -84,7 +84,6 @@ class Servicer():
             print('(.env.yaml) found, including these arguments:')
 
             yaml_dict = yaml.load(open(path))
-            print(yaml_dict)
             for key, value in yaml_dict.items():
                 os.environ[key] = value
                 print(key)
@@ -286,43 +285,55 @@ class Servicer():
 
         for service_name in active_services:
             service = self.config['services'][service_name]
-
-            if 'config' not in service:
-                service['config'] = {}
-
-            if 'provider' not in service:
-                continue
-
-            self.try_initialize_provider(service['provider'], service)
-
-            if 'service_type' not in service:
-                continue
-
-            service_modules = [
-                {
-                    'name': 'service_adapters.%s.%s' % (service['provider'], service['service_type']),
-                    'package': 'service_adapters',
-                    'file_path': '%s/service_adapters/%s/%s.py' % (self.config['config_path'], service['provider'], service['service_type']),
-                },
-                {
-                    'file_path': '%s/service_adapters/%s/%s.sh' % (self.config['config_path'], service['provider'], service['service_type']),
-                },
-                {
-                    'name': 'servicer.builtin.service_adapters.%s.%s' % (service['provider'], service['service_type']),
-                    'package': 'servicer.builtin.service_adapters',
-                    'file_path': '%s/builtin/service_adapters/%s/%s.py' % (self.config['module_path'], service['provider'], service['service_type']),
-                },
-                {
-                    'file_path': '%s/builtin/service_adapters/%s/%s.sh' % (self.config['module_path'], service['provider'], service['service_type']),
-                },
-            ]
-            module = self.load_module_from_paths(service_modules)
-            if isinstance(module, str):
-                service['shell_script'] = service['module']
-            else:
-                service['module'] = module
+            self.load_service_module(service)
 
         return active_services
+
+    def load_service_module(self, service):
+        if 'config' not in service:
+            service['config'] = {}
+
+        if 'service_type' not in service:
+            return
+
+        adapter_name = service['service_type']
+        adapter_path = service['service_type']
+
+        providers = []
+        if 'provider' in service:
+            providers.append(service['provider'])
+            adapter_name = '%s.%s' % (service['provider'], adapter_name)
+            adapter_path = '%s/%s' % (service['provider'], adapter_path)
+
+        if 'providers' in service:
+            providers.extend(service['providers'])
+
+        for provider in providers:
+            self.try_initialize_provider(service['provider'], service)
+
+        service_modules = [
+            {
+                'name': 'service_adapters.%s' % adapter_name,
+                'package': 'service_adapters',
+                'file_path': '%s/service_adapters/%s.py' % (self.config['config_path'], adapter_path),
+            },
+            {
+                'file_path': '%s/service_adapters/%s.sh' % (self.config['config_path'], adapter_path),
+            },
+            {
+                'name': 'servicer.builtin.service_adapters.%s' % adapter_name,
+                'package': 'servicer.builtin.service_adapters',
+                'file_path': '%s/builtin/service_adapters/%s.py' % (self.config['module_path'], adapter_path),
+            },
+            {
+                'file_path': '%s/builtin/service_adapters/%s.sh' % (self.config['module_path'], adapter_path),
+            },
+        ]
+        module = self.load_module_from_paths(service_modules)
+        if isinstance(module, str):
+            service['shell_script'] = module
+        else:
+            service['module'] = module
 
     def ignore_unchanged_services(self, services):
         if 'no_ignore' in self.config['args'] and self.config['args']['no_ignore']:
@@ -492,6 +503,13 @@ class Servicer():
         dependencies = {}
         for service_name in services:
             service = self.config['services'][service_name]
+
+            for step_name in self.step_order:
+                if step_name in service['steps']:
+                    service_step = '%s:%s' % (service_name, step_name)
+                    if not service_step in dependencies:
+                        dependencies[service_step] = set()
+
             service_deps = self.calculate_service_dependencies(service)
             dependencies.update(service_deps)
 
@@ -578,7 +596,7 @@ class Servicer():
                 else:
                     msg = 'Invalid step dependency specified: %s, "%s" must be included in steps: [%s]' % (dep, step_dependency, ','.join(self.steps.keys()))
                     raise ValueError(msg)
-            else:
+            elif step_name in self.config['services'][service_dependency]['steps']:
                 dependencies[service_step].add('%s:%s' % (service_dependency, step_name))
 
     def load_steps(self):
@@ -616,8 +634,8 @@ class Servicer():
                 print('step:')
                 print(json.dumps(step, indent=4, sort_keys=True, default=str))
                 print()
-                print('service_step:')
-                print(json.dumps(service_step, indent=4, sort_keys=True, default=str))
+                print('service:')
+                print(json.dumps(service, indent=4, sort_keys=True, default=str))
                 print()
 
             if 'config' in step and 'requires_service_environment' in step['config']:
@@ -641,7 +659,10 @@ class Servicer():
             for c in commands:
                 self.run(c)
 
-        if 'module' in service and 'config' in service_step:
+        if 'config' in service_step:
+            if 'module' not in service:
+                self.load_service_module(service)
+
             config = service_step.get('config')
             # allow value interpolation of prior step-service results
             self.interpolate_tokens(config, self.config, ignore_missing_key=True)

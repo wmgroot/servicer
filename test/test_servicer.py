@@ -276,11 +276,15 @@ class AddDependenciesTest(ServicerTest):
                 },
                 'service_2': {
                     'name': 'service_2',
-                    'steps': {'build': {}, 'test': {}},
+                    'steps': {'build': {}, 'test': {}, 'deploy': {}},
                 },
                 'service_3': {
                     'name': 'service_3',
                     'steps': {'build': {}, 'test': {}},
+                },
+                'service_4': {
+                    'name': 'service_4',
+                    'steps': {'build': {}, 'deploy': {}},
                 },
             },
         }
@@ -318,6 +322,13 @@ class AddDependenciesTest(ServicerTest):
 
         self.assertEqual(self.dependencies, {
             'service_1:test': set(['service_2:test', 'service_3:test']),
+        })
+
+    def test_skips_adding_nonexistant_steps_for_a_service_dependency(self):
+        result = self.servicer.add_dependencies(self.dependencies, self.service, 'test', 'service_4')
+
+        self.assertEqual(self.dependencies, {
+            'service_1:test': set(),
         })
 
     def test_adding_a_service_name_wildcard(self):
@@ -361,7 +372,7 @@ class AddDependenciesTest(ServicerTest):
         with self.assertRaises(ValueError) as context:
             result = self.servicer.add_dependencies(self.dependencies, self.service, 'test', 'service_0')
 
-        self.assertTrue('Invalid service dependency specified: service_0, "service_0" must be included in services: [service_1,service_2,service_3]' in str(context.exception))
+        self.assertTrue('Invalid service dependency specified: service_0, "service_0" must be included in services: [service_1,service_2,service_3,service_4]' in str(context.exception))
 
     def test_errors_if_step_does_not_exist(self):
         with self.assertRaises(ValueError) as context:
@@ -457,6 +468,11 @@ class RunServiceStepTest(ServicerTest):
         self.Service = mock.Mock(return_value=self.adapter)
         self.module = self.AutoMock(Service=self.Service)
 
+        def mock_load_service_module(service):
+            service['module'] = self.module
+
+        self.servicer.load_service_module = mock.Mock(side_effect=mock_load_service_module)
+
         self.service = {
             'module': self.module,
             'name': 'service_1',
@@ -479,8 +495,11 @@ class RunServiceStepTest(ServicerTest):
 
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
+        self.servicer.load_service_module.assert_called_with(self.service)
+
         self.servicer.run.assert_not_called()
-        self.servicer.interpolate_tokens.assert_not_called()
+        self.servicer.interpolate_tokens.assert_called_with(self.service['steps']['build']['config'], self.servicer.config, ignore_missing_key=True)
+        self.assertEqual(self.service['steps']['build']['results'], 'service-step results')
 
     def test_runs_a_service_step_with_module_and_no_config(self):
         self.service['steps']['build'].pop('config')
