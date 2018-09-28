@@ -10,7 +10,7 @@ class Service(BasePackageService):
         self.sbt_credentials_path = os.getenv('SBT_CREDENTIALS_PATH', '%s/.sbt/.credentials' % os.environ['HOME'])
 
         self.name_regex = re.compile('name\s*:=\s*[\'\"]+(.*?)[\'\"]+')
-        self.version_regex = re.compile('version(?: in ThisBuild)? := [\'\"]+(\d+\.\d+\.\d+\.*\d*)[\'\"]+')
+        self.version_regex = re.compile('version(?: in ThisBuild)? := [\'\"]+(\d+\.\d+\.\d+\.*\d*)(?:-SNAPSHOT)?[\'\"]+')
         self.scala_version_regex = re.compile('(?:val )?scala(?:Version)?\s+:?= [\'\"]+(\d+\.\d+\.\d+)[\'\"]+')
         self.package_version_format = 'version in ThisBuild := "%s"'
 
