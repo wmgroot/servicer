@@ -107,6 +107,15 @@ class Service(BaseService):
         self.results['package_name'] = self.package_info['name']
         self.results['package_version'] = self.package_info['version']
 
+        pieces = self.package_info['version'].split('.')
+        self.results['package_version_major'] = pieces[0]
+        if len(pieces) > 1:
+            self.results['package_version_minor'] = pieces[1]
+        if len(pieces) > 2:
+            self.results['package_version_patch'] = pieces[2]
+        if len(pieces) > 3:
+            self.results['package_version_revision'] = pieces[3]
+
     def package_name(self, path):
         with open(path) as f:
             text = f.read()

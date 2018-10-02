@@ -1,0 +1,25 @@
+providers:
+  - dockerhub
+service_type: docker_image
+
+steps:
+  build:
+    config:
+      steps:
+        - type: build
+          args:
+            image: ${image}
+            dockerfile: ${dockerfile}
+            path: ${docker_context_path}
+  deploy:
+    depends_on:
+      - '*:test'
+    config:
+      registry_path: ${registry}
+      steps:
+        - type: push
+          args:
+            image: ${image}
+            tags:
+              - ${PACKAGE_VERSION:{services.pypi.steps.build.results.package_version}}
+              - ${PACKAGE_VERSION_MAJOR:{services.pypi.steps.build.results.package_version_major}}.${PACKAGE_VERSION_MINOR:{services.pypi.steps.build.results.package_version_minor}}

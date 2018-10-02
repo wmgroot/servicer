@@ -18,6 +18,8 @@ git:
     - '*.gitignore'
 
 providers:
+  dockerhub:
+    config: {}
   package:
     libraries:
       - twine==1.11.0
@@ -28,14 +30,38 @@ services:
     service_type: pypi
 
     steps:
+      build:
+        commands:
+          - rm -rf build dist
+          - python setup.py sdist
+        config:
+          package_info:
+            package_file_path: setup.py
+          steps:
+            - type: read_package_info
       test:
         commands:
           - python -m unittest discover -b
       deploy:
         config:
           steps:
-            - type: setup_py
-              args:
-                command: sdist
             - type: generate_pypi_config
             - type: upload
+
+  image-alpine:
+    includes:
+      path: docker_image.yaml
+      params:
+        registry: wmgroot/${PROJECT_NAME}-alpine
+        dockerfile: docker/Dockerfile-alpine
+        docker_context_path: .
+        image: alpine
+
+  image-alpine-gcloud-sbt:
+    includes:
+      path: docker_image.yaml
+      params:
+        registry: wmgroot/${PROJECT_NAME}-alpine-gcloud-sbt
+        dockerfile: docker/Dockerfile-alpine-gcloud-sbt
+        docker_context_path: .
+        image: alpine-gcloud-sbt
