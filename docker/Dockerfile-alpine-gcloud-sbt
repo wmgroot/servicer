@@ -1,0 +1,19 @@
+FROM python:3.6-alpine
+
+RUN apk update && apk upgrade && \
+    apk add --no-cache bash docker git git-lfs openssh
+
+RUN apk --no-cache add --repository http://dl-cdn.alpinelinux.org/alpine/edge/testing sbt
+RUN apk --no-cache add libc6-compat
+
+# install gcloud sdk on alpine
+RUN wget https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.zip
+RUN unzip google-cloud-sdk.zip && rm google-cloud-sdk.zip
+RUN google-cloud-sdk/install.sh --additional-components kubectl
+ENV PATH $PATH:/google-cloud-sdk/bin
+
+RUN gcloud --version
+RUN gcloud auth configure-docker -q
+
+ADD . /code/
+RUN pip install -e /code
