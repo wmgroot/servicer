@@ -5,7 +5,8 @@ RUN apk update && apk upgrade && \
 
 RUN apk --no-cache add --repository http://dl-cdn.alpinelinux.org/alpine/edge/testing sbt
 RUN apk --no-cache add libc6-compat
-RUN apk --no-cache add nodejs
+RUN apk --no-cache add nodejs nodejs-npm
+RUN npm install -g typescript
 
 # install gcloud sdk on alpine
 RUN wget https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.zip
