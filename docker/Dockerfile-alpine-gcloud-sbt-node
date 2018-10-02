@@ -5,6 +5,7 @@ RUN apk update && apk upgrade && \
 
 RUN apk --no-cache add --repository http://dl-cdn.alpinelinux.org/alpine/edge/testing sbt
 RUN apk --no-cache add libc6-compat
+RUN apk --no-cache add nodejs
 
 # install gcloud sdk on alpine
 RUN wget https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.zip
@@ -15,5 +16,5 @@ ENV PATH $PATH:/google-cloud-sdk/bin
 RUN gcloud --version
 RUN gcloud auth configure-docker -q
 
-ADD . /code/
-RUN pip install -e /code
+ADD . /code/servicer/
+RUN pip install -e /code/servicer

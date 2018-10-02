@@ -57,11 +57,11 @@ services:
         docker_context_path: .
         image: alpine
 
-  image-alpine-gcloud-sbt:
+  image-alpine-gcloud-sbt-node:
     includes:
       path: docker_image.yaml
       params:
-        registry: wmgroot/${PROJECT_NAME}-alpine-gcloud-sbt
-        dockerfile: docker/Dockerfile-alpine-gcloud-sbt
+        registry: wmgroot/${PROJECT_NAME}-alpine-gcloud-sbt-node
+        dockerfile: docker/Dockerfile-alpine-gcloud-sbt-node
         docker_context_path: .
-        image: alpine-gcloud-sbt
+        image: alpine-gcloud-sbt-node
