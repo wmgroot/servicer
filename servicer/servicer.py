@@ -293,22 +293,21 @@ class Servicer():
         if 'config' not in service:
             service['config'] = {}
 
+        if 'providers' in service:
+            for provider in service['providers']:
+                self.try_initialize_provider(provider, service)
+
         if 'service_type' not in service:
+            service['module'] = None
             return
 
         adapter_name = service['service_type']
         adapter_path = service['service_type']
 
-        providers = []
         if 'provider' in service:
-            providers.append(service['provider'])
             adapter_name = '%s.%s' % (service['provider'], adapter_name)
             adapter_path = '%s/%s' % (service['provider'], adapter_path)
 
-        if 'providers' in service:
-            providers.extend(service['providers'])
-
-        for provider in providers:
             self.try_initialize_provider(service['provider'], service)
 
         service_modules = [
@@ -654,15 +653,15 @@ class Servicer():
         print('\nBuild Complete.')
 
     def run_service_step(self, service, service_step):
+        if 'module' not in service:
+            self.load_service_module(service)
+
         commands = service_step.get('commands')
         if commands:
             for c in commands:
                 self.run(c)
 
         if 'config' in service_step:
-            if 'module' not in service:
-                self.load_service_module(service)
-
             config = service_step.get('config')
             # allow value interpolation of prior step-service results
             self.interpolate_tokens(config, self.config, ignore_missing_key=True)
