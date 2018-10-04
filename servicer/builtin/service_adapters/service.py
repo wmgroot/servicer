@@ -3,7 +3,7 @@ import os
 from servicer.run import run
 from servicer.tokens import interpolate_tokens
 
-class BaseService:
+class Service:
     def __init__(self, config=None):
         self.run = run
 

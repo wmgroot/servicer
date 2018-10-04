@@ -1,6 +1,6 @@
 import os
 
-from ..base_service import BaseService
+from ..service import Service as BaseService
 from servicer.git import Git
 
 class Service(BaseService):

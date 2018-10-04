@@ -290,16 +290,13 @@ class Servicer():
         return active_services
 
     def load_service_module(self, service):
+        service['module'] = None
+
         if 'config' not in service:
             service['config'] = {}
 
-        if 'providers' in service:
-            for provider in service['providers']:
-                self.try_initialize_provider(provider, service)
-
         if 'service_type' not in service:
-            service['module'] = None
-            return
+            service['service_type'] = 'service'
 
         adapter_name = service['service_type']
         adapter_path = service['service_type']
@@ -309,6 +306,10 @@ class Servicer():
             adapter_path = '%s/%s' % (service['provider'], adapter_path)
 
             self.try_initialize_provider(service['provider'], service)
+
+        if 'providers' in service:
+            for provider in service['providers']:
+                self.try_initialize_provider(provider, service)
 
         service_modules = [
             {

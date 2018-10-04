@@ -1,5 +1,5 @@
 import os
-from .base_service import BaseService
+from .service import Service as BaseService
 
 class Service(BaseService):
     def __init__(self, config):
