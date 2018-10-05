@@ -298,11 +298,9 @@ class Servicer():
         if 'service_type' not in service:
             service['service_type'] = 'service'
 
-        adapter_name = service['service_type']
         adapter_path = service['service_type']
 
         if 'provider' in service:
-            adapter_name = '%s.%s' % (service['provider'], adapter_name)
             adapter_path = '%s/%s' % (service['provider'], adapter_path)
 
             self.try_initialize_provider(service['provider'], service)
@@ -311,6 +309,7 @@ class Servicer():
             for provider in service['providers']:
                 self.try_initialize_provider(provider, service)
 
+        adapter_name = adapter_path.replace('/', '.')
         service_modules = [
             {
                 'name': 'service_adapters.%s' % adapter_name,

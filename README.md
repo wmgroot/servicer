@@ -7,7 +7,7 @@ Servicer works with the *services* you define in `.servicer/services.yaml`, and 
 ## Separation of Concerns ##
 Servicer is separated into three main components: adapters, services, and the project environment.
 
-*Adapters* allow Servicer to use or interact with external systems, like Google Cloud Platform, GitHub, and Jenkins. Three kinds of adapters exist: CI adapters, auth adapters, and service adapters. These are written as reusable python modules, and are located in `servicer/builtin`. 
+*Adapters* allow Servicer to use or interact with external systems, like Google Cloud Platform, GitHub, and Jenkins. Three kinds of adapters exist: CI adapters, auth adapters, and service adapters. These are written as reusable python modules, and are located in `servicer/builtin`.
 
  *Services* are the building blocks of your project. Services are defined in the .servicer/services.yaml file in your project, and these definitions include the configuration and commands needed to build, test and deploy each service. Additionally, service dependencies may be defined to automate the order services and steps are executed in.
 
@@ -296,8 +296,8 @@ DATABASE_NAME: my_db
 DATABASE_USERNAME: postgres
 DATABASE_PASSWORD: xxxxxxxx
 GCLOUD_KEY_FILE_PATH: /Users/me/my_gcloud_credentials.json
-GCLOUD_COMPUTE_REGION: us-central1
-GCLOUD_COMPUTE_ZONE: us-central1-f
+GCLOUD_REGION: us-central1
+GCLOUD_ZONE: us-central1-f
 PROJECT_NAME: my-project
 SERVICE_ENVIRONMENT: test
 ```
@@ -342,7 +342,7 @@ services:
 ```
 In this case, Servicer will only execute `my_python_package`'s steps (only `build` is present) if any file within the my_python_package directory, except README.md, was returned by Servicer's `git diff`.
 
-Supported formats for `watch_paths` and `ignore_paths` are simple text with `*` as a wildcard, and full regexes in the format `/.*/`. 
+Supported formats for `watch_paths` and `ignore_paths` are simple text with `*` as a wildcard, and full regexes in the format `/.*/`.
 
 ### Automatic Versioning ###
 _*Warning:* This is an experimental feature. Automatic versioning requires Servicer to make automated commits back to your repository with updated version numbers for package services. This can have unintended side effects with your CI solution unless you know what you're doing._
