@@ -30,7 +30,7 @@ class AuthAdapter(BaseAuthAdapter):
             download_file = 'sonar-scanner-cli-%s.zip' % self.scanner_version
             download_directory = os.path.dirname(self.scanner_path)
             download_path = '%s/%s' % (download_directory, download_file)
-            url = 'https://sonarsource.bintray.com/Distribution/sonar-scanner-cli/%s' % download_file
+            url = 'https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/%s' % download_file
 
             file_path = '%s.zip' % self.scanner_path
             print('downloading sonar-scanner from %s to %s' % (url, download_path))
