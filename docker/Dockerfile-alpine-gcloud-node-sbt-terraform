@@ -4,7 +4,10 @@ RUN apk update && apk upgrade && \
     apk add --no-cache bash docker git git-lfs openssh
 
 RUN apk --no-cache add --repository http://dl-cdn.alpinelinux.org/alpine/edge/testing sbt
-RUN apk --no-cache add libc6-compat
+# https://github.com/sgerrand/alpine-pkg-glibc/issues/1
+RUN apk --no-cache --allow-untrusted -X https://apkproxy.herokuapp.com/sgerrand/alpine-pkg-glibc add glibc glibc-bin
+RUN apk --no-cache add openjdk8
+ENV PATH $PATH:/usr/lib/jvm/java-1.8-openjdk/bin
 
 RUN apk --no-cache add nodejs nodejs-npm
 RUN npm install -g typescript
