@@ -7,15 +7,15 @@ from .base_package import Service as BasePackageService
 class Service(BasePackageService):
     def __init__(self, config=None):
         super().__init__(config=config)
+
         self.sbt_credentials_path = os.getenv('SBT_CREDENTIALS_PATH', '%s/.sbt/.credentials' % os.environ['HOME'])
 
-        self.name_regex = re.compile('name\s*:=\s*[\'\"]+(.*?)[\'\"]+')
-        self.version_regex = re.compile('version(?: in ThisBuild)? := [\'\"]+(\d+\.\d+\.\d+\.*\d*)(?:-SNAPSHOT)?[\'\"]+')
-        self.scala_version_regex = re.compile('(?:val )?scala(?:Version)?\s+:?= [\'\"]+(\d+\.\d+\.\d+)[\'\"]+')
-        self.package_version_format = 'version in ThisBuild := "%s"'
+        self.name_regex = re.compile('^\s*name\s*:=\s*[\'\"]+(.*?)[\'\"].*$', re.MULTILINE)
+        self.version_regex = re.compile('^\s*version(?: in ThisBuild)? := [\'\"]+(\d+\.\d+\.\d+\.*\d*)(?:-SNAPSHOT)?[\'\"].*$', re.MULTILINE)
+        self.scala_version_regex = re.compile('^\s*(?:val )?scala(?:Version)?\s+:?= [\'\"]+(\d+\.\d+\.\d+)[\'\"].*$', re.MULTILINE)
+        self.scala_cross_version_regex = re.compile('^\s*crossScalaVersions\s+:=\s+Seq\((.*)\).*$', re.MULTILINE)
 
-        if 'package_file_path' in self.config['package_info'] and 'scala_version_file_path' not in self.config['package_info']:
-             self.config['package_info']['scala_version_file_path'] = self.config['package_info']['package_file_path']
+        self.package_version_format = 'version in ThisBuild := "%s"'
 
     def generate_sbt_credentials(self, credentials=None):
         if credentials:
@@ -37,19 +37,53 @@ class Service(BasePackageService):
         print('credentials written to %s' % self.sbt_credentials_path)
 
     def read_package_info(self, package_info={}):
-        super().read_package_info(package_info=package_info)
+        package_file_paths = self.list_file_paths(self.config['package_directory'], '**/build.sbt')
 
-        self.package_info['scala_version'] = self.scala_version(self.config['package_info']['scala_version_file_path'])
+        scala_versions = None
 
-    def scala_version(self, path):
+        if 'scala_version' in self.config['package_info']:
+            scala_versions = self.config['package_info']['scala_version']
+
+        scala_version_paths = [
+            '%s/build.sbt' % self.config['package_directory'],
+        ]
+        for path in scala_version_paths:
+            if scala_versions:
+                break
+
+            scala_versions = self.scala_versions(path)
+
+        if not scala_versions:
+            raise ValueError('Scala version not defined at: %s' % scala_version_paths)
+
+        if not isinstance(scala_versions, list):
+            scala_versions = [scala_versions]
+
+        self.package_info = []
+        for package_file_path in package_file_paths:
+            directory = os.path.dirname(package_file_path)
+
+            package_version_path = '%s/version.sbt' % directory
+            if os.path.exists(package_version_path):
+                for sv in scala_versions:
+                    pi = self.config['package_info'].copy()
+                    pi['name'] = self.package_name(package_file_path)
+                    pi['scala_version'] = sv
+                    pi['version'] = self.package_version(package_version_path)
+                    pi['version_file_path'] = package_version_path
+                    self.package_info.append(pi)
+
+    def scala_versions(self, path):
         with open(path) as f:
             text = f.read()
-            result = self.scala_version_regex.search(text)
 
+            cross_version_result = self.scala_cross_version_regex.search(text)
+            if cross_version_result:
+                return ''.join(cross_version_result.groups()[0].split()).replace('"', '').split(',')
+
+            result = self.scala_version_regex.search(text)
             if result:
                 return result.groups()[0]
-            else:
-                raise ValueError('Scala version not defined at: %s' % path)
 
     # only works with Artifactory :(
     def get_existing_versions(self, **package_info):
@@ -74,7 +108,7 @@ class Service(BasePackageService):
             body = response.json()
             versions.extend([child['uri'][1:] for child in body['children'] if child['folder']])
 
-        print('existing versions for: %s' % package_info['name'])
+        print('existing versions for: %s' % package_path)
         print(versions)
 
         return versions

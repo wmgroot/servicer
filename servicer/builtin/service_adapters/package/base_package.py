@@ -1,4 +1,5 @@
 import os
+import glob
 
 from ..service import Service as BaseService
 from servicer.git import Git
@@ -33,33 +34,40 @@ class Service(BaseService):
     def set_auto_version(self, max_increment=10):
         print('auto-versioning...')
         self.read_package_info(self.config['package_info'])
+        if not isinstance(self.package_info, list):
+            self.package_info = [self.package_info]
 
         current_increment = 0
         version_changed = False
         while True:
-            invalid_version = self.if_package_version_exists(**self.package_info)
-
-            if not invalid_version:
+            invalid_versions = [self.if_package_version_exists(**p) for p in self.package_info]
+            if not any(invalid_versions):
                 break
 
             if current_increment > max_increment:
-                raise ValueError('Max package_version auto-increment reached! %s-%s' % (self.package_info['package_name'], self.package_info['version']))
+                raise ValueError('Max package_version auto-increment reached! %s-%s' % (self.package_info[0]['package_name'], self.package_info[0]['version']))
 
-            self.package_info['version'] = self.increment_version(self.package_info['version'])
+            for pi in self.package_info:
+                pi['version'] = self.increment_version(pi['version'])
+
             version_changed = True
             current_increment += 1
 
-        print('Automatic version decided: %s-%s' % (self.package_info['name'], self.package_info['version']))
+        print('Automatic version decided: %s' % ['%s:%s' % (pi['name'], pi['version']) for pi in self.package_info])
 
         if version_changed:
-            self.write_package_version(
-                path=self.config['package_info']['version_file_path'],
-                version=self.package_info['version'],
-            )
-
             if 'changed_files' not in self.results:
-                self.results['changed_files'] = []
-            self.results['changed_files'].append(self.config['package_info']['version_file_path'])
+                self.results['changed_files'] = set()
+
+            for pi in self.package_info:
+                self.write_package_version(
+                    path=pi['version_file_path'],
+                    version=pi['version'],
+                )
+
+                self.results['changed_files'].add(pi['version_file_path'])
+
+            self.results['changed_files'] = list(self.results['changed_files'])
 
     def commit_and_push_changes(self, git_no_verify=False, terminate_on_change=False):
         if 'BRANCH' not in os.environ:
@@ -101,10 +109,15 @@ class Service(BaseService):
 
     def read_package_info(self, package_info={}):
         self.package_info = package_info
-        self.package_info['name'] = self.package_name(self.config['package_info']['package_file_path'])
-        self.package_info['version'] = self.package_version(self.config['package_info']['version_file_path'])
+
+        if 'name' not in self.package_info:
+            self.package_info['name'] = self.package_name(self.config['package_info']['package_file_path'])
+        if 'version' not in self.package_info:
+            self.package_info['version'] = self.package_version(self.config['package_info']['version_file_path'])
 
         self.results['package_name'] = self.package_info['name']
+        if isinstance(self.results['package_name'], list):
+            self.results['package_name'] = ','.join(self.results['package_name'])
         self.results['package_version'] = self.package_info['version']
 
         pieces = self.package_info['version'].split('.')
@@ -149,3 +162,6 @@ class Service(BaseService):
         with open(path, 'w') as out:
             out.write(text)
             self.results['package_version'] = version
+
+    def list_file_paths(self, path, match_glob):
+        return glob.glob('%s/%s' % (path, match_glob), recursive=True)
