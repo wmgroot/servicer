@@ -137,9 +137,6 @@ class Service(BasePackageService):
         if match:
             versions.extend(match.group(1).split(', '))
 
-        print('existing package: %s' % package_info['name'])
-        print('existing versions: %s' % versions)
-
         return versions
 
     def pip(self, command, hide_output=True):

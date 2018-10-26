@@ -25,7 +25,7 @@ def toposort2(data):
         # build the next topological layer
         result.append(sorted(ordered))
 
-        # remove the current layer's dependenices from each item
+        # remove the current layer's dependencies from each item
         data = {item: (dep - ordered) for item, dep in data.items() if item not in ordered}
 
     assert not data, 'A cyclic dependency exists amongst %r' % data

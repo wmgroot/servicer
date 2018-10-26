@@ -43,6 +43,10 @@ git:
   # enable to have servicer disregard commits made by servicer for change detection
   ignore-servicer-commits: false
 
+graph:
+  # if enabled, a service-step will automatically depend on the previous step for the same service
+  implicit-step-dependencies: true
+
 steps:
   - name: build
   - name: test

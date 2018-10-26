@@ -12,7 +12,7 @@ class AuthAdapter(BaseAuthAdapter):
         self.run('gcloud -v')
 
         project = self.config.get('project', os.environ['PROJECT_NAME'])
-        compute_zone = self.config.get('compute_zone', os.environ['GCLOUD_COMPUTE_ZONE'])
+        compute_zone = self.config.get('compute_zone', os.environ['GCLOUD_ZONE'])
         key_file_path = self.config.get('key_file_path', os.environ['GCLOUD_KEY_FILE_PATH'])
 
         self.ensure_key_file(key_file_path)

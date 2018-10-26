@@ -30,5 +30,5 @@ setup(
     packages = find_packages(),
     python_requires = '>=3.5',
     url = 'https://github.com/wmgroot/servicer',
-    version = '0.8.1',
+    version = '0.9.0',
 )

@@ -101,9 +101,12 @@ class Service(BaseService):
         commit_result = self.git.commit(**commit_args)
         push_result = self.git.push(ref=os.environ['BRANCH'], no_verify=git_no_verify)
 
-        if terminate_on_change and commit_result['status'] == 0:
-            # requests termination of the build after the current step completes
-            os.environ['TERMINATE_BUILD'] = '0'
+        if commit_result['status'] == 0:
+            if terminate_on_change:
+                # requests termination of the build after the current step completes
+                os.environ['TERMINATE_BUILD'] = '0'
+        else:
+            print('no changes to commit')
 
     def increment_version(self, version):
         new_version = [int(v) for v in version.split('.')]

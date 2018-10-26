@@ -2,11 +2,12 @@ import os
 import json
 import yaml
 
-from .tokens import interpolate_tokens, replace_tokens
+from .token_interpolator import TokenInterpolator
 
 class ConfigLoader():
     def __init__(self, args={}):
         self.args = args
+        self.token_interpolator = TokenInterpolator()
         self.module_path = os.path.dirname(os.path.realpath(globals()['__file__']))
         self.servicer_config_path = args.get('servicer_config_path')
         self.servicer_config_file_path = '%s/%s' % (self.servicer_config_path, args.get('services_file'))
@@ -27,9 +28,6 @@ class ConfigLoader():
 
         if 'environment' in services_config and 'variables' in services_config['environment']:
             self.load_environment_variables(services_config['environment']['variables'])
-
-        print('Services Config:')
-        print(json.dumps(services_config, indent=4, sort_keys=True))
 
         return services_config
 
@@ -81,9 +79,10 @@ class ConfigLoader():
 
             include_config = {}
             self.load_extended_config(config_path=include_path, config=include_config)
+            self.merge_included_configs(config_path=self.servicer_config_file_path, config=include_config)
 
             if params:
-                interpolate_tokens(include_config, params, ignore_missing_key=True)
+                self.token_interpolator.interpolate_tokens(include_config, params, ignore_missing_key=True)
 
             self.merge_config(config, include_config)
 
@@ -107,8 +106,8 @@ class ConfigLoader():
 
     def interpolate_config(self, config):
         print('Interpolating Tokens...')
-        interpolate_tokens(config, os.environ, ignore_missing_key=True)
+        self.token_interpolator.interpolate_tokens(config, os.environ, ignore_missing_key=True)
 
     def load_environment_variables(self, variables={}):
         for key, value in variables.items():
-            os.environ[key] = replace_tokens(value, os.environ)
+            os.environ[key] = self.token_interpolator.replace_tokens(value, os.environ)

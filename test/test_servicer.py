@@ -6,7 +6,12 @@ from servicer.servicer import Servicer
 
 class ServicerTest(TestCase):
     def setUp(self):
-        self.servicer = Servicer(args={})
+        self.servicer = Servicer(args={}, init=False)
+
+        self.servicer.run = mock.Mock()
+        self.servicer.token_interpolator = mock.Mock()
+        self.servicer.token_interpolator.interpolate_tokens = mock.Mock()
+        self.servicer.dependency_grapher = mock.Mock()
 
     def AutoMock(self, **attributes):
         automock = mock.Mock(spec=attributes.keys())
@@ -73,8 +78,9 @@ class GetServiceEnvironmentTest(ServicerTest):
     def setUp(self):
         super().setUp()
 
-        self.servicer.map_service_environment = mock.Mock(return_value=None)
+        self.servicer.map_service_environment = mock.Mock(return_value=(None, None))
 
+        self.servicer.config = {}
         self.servicer.config['environment'] = {
             'mappings': [{ 'branch': 'foo', 'environment': 'bar' }],
         }
@@ -85,7 +91,7 @@ class GetServiceEnvironmentTest(ServicerTest):
         self.assertEqual(result, None)
 
     def test_matched_environment(self):
-        self.servicer.map_service_environment.return_value = 'my_wacky/environment'
+        self.servicer.map_service_environment.return_value = ('my_wacky/environment', { 'branch': 'my_wacky/environment' })
 
         result = self.servicer.get_service_environment('my-branch')
         self.servicer.map_service_environment.assert_called_with('my-branch', mock.ANY)
@@ -94,31 +100,27 @@ class GetServiceEnvironmentTest(ServicerTest):
 class MapServiceEnvironmentTest(ServicerTest):
     def test_no_mappings(self):
         result = self.servicer.map_service_environment('my-branch', [])
-        self.assertEqual(result, None)
+        self.assertEqual(result, (None, None))
 
     def test_branch_mapping(self):
-        result = self.servicer.map_service_environment('develop', [
-            { 'branch': 'develop' },
-        ])
-        self.assertEqual(result, 'develop')
+        mapping = { 'branch': 'develop' }
+        result = self.servicer.map_service_environment('develop', [mapping])
+        self.assertEqual(result, ('develop', mapping))
 
     def test_branch_environment_mapping(self):
-        result = self.servicer.map_service_environment('master', [
-            { 'branch': 'master', 'environment': 'production' },
-        ])
-        self.assertEqual(result, 'production')
+        mapping = { 'branch': 'master', 'environment': 'production' }
+        result = self.servicer.map_service_environment('master', [mapping])
+        self.assertEqual(result, ('production', mapping))
 
     def test_branch_wildcard_mapping(self):
-        result = self.servicer.map_service_environment('env-my-branch', [
-            { 'branch': 'env-*' },
-        ])
-        self.assertEqual(result, 'env-my-branch')
+        mapping = { 'branch': 'env-*' }
+        result = self.servicer.map_service_environment('env-my-branch', [mapping])
+        self.assertEqual(result, ('env-my-branch', mapping))
 
     def test_regex_mapping(self):
-        result = self.servicer.map_service_environment('env-my-branch', [
-            { 'branch': '/.*-my-.*/' },
-        ])
-        self.assertEqual(result, 'env-my-branch')
+        mapping = { 'branch': '/.*-my-.*/' }
+        result = self.servicer.map_service_environment('env-my-branch', [mapping])
+        self.assertEqual(result, ('env-my-branch', mapping))
 
     def test_no_match(self):
         result = self.servicer.map_service_environment('my-branch', [
@@ -126,7 +128,7 @@ class MapServiceEnvironmentTest(ServicerTest):
             { 'branch': 'develop' },
             { 'branch': 'env-*' },
         ])
-        self.assertEqual(result, None)
+        self.assertEqual(result, (None, None))
 
     def test_no_match_but_starts_with_branch(self):
         result = self.servicer.map_service_environment('master_branch', [
@@ -134,7 +136,7 @@ class MapServiceEnvironmentTest(ServicerTest):
             { 'branch': 'develop' },
             { 'branch': 'env-*' },
         ])
-        self.assertEqual(result, None)
+        self.assertEqual(result, (None, None))
 
     def test_multiple_match(self):
         result = self.servicer.map_service_environment('env-my-branch-qa', [
@@ -142,324 +144,11 @@ class MapServiceEnvironmentTest(ServicerTest):
             { 'branch': '*-qa', 'environment': 'qa' },
             { 'branch': 'env-*' },
         ])
-        self.assertEqual(result, 'qa')
-
-class OrderServiceStepsTest(ServicerTest):
-    def setUp(self):
-        super().setUp()
-
-        self.servicer.calculate_service_dependencies = mock.Mock(side_effect=[
-            {'service_1:test': set(['service_1:build'])},
-            {'service_2:test': set(['service_2:build'])},
-        ])
-        self.servicer.toposort2 = mock.Mock(return_value=[
-            ['service_1:build', 'service_2:build'],
-            ['service_1:test', 'service_2:test'],
-        ])
-        self.servicer.config = {
-            'services': {
-                'service_1': {
-                    'field1': 'value1',
-                },
-                'service_2': {
-                    'field2': 'value2',
-                },
-            },
-        }
-
-    def test_returns_a_service_step_order(self):
-        result = self.servicer.order_service_steps(self.servicer.config['services'].keys())
-
-        self.servicer.calculate_service_dependencies.assert_has_calls([
-            mock.call(self.servicer.config['services']['service_1']),
-            mock.call(self.servicer.config['services']['service_2']),
-        ])
-        self.servicer.toposort2.assert_called_with({
-            'service_1:test': set(['service_1:build']),
-            'service_2:test': set(['service_2:build']),
-        })
-        self.assertEqual(result, [
-            ['service_1:build', 'service_2:build'],
-            ['service_1:test', 'service_2:test'],
-        ])
-
-    def test_returns_an_empty_service_step_order(self):
-        self.servicer.toposort2 = mock.Mock(return_value=[])
-
-        result = self.servicer.order_service_steps([])
-
-        self.servicer.calculate_service_dependencies.assert_not_called()
-        self.servicer.toposort2.assert_called_with({})
-        self.assertEqual(result, [])
-
-class CalculateServiceDependenciesTest(ServicerTest):
-    def setUp(self):
-        super().setUp()
-
-        self.servicer.add_dependencies = mock.Mock()
-
-        self.servicer.step_order = [
-            'build',
-            'test',
-            'deploy',
-        ]
-
-        self.service = {
-            'name': 'service_1',
-            'steps': {
-                'build': {'config': {}},
-                'test': {'config': {}},
-                'deploy': {'config': {}},
-            },
-        }
-
-    def test_calculates_standard_step_order(self):
-        result = self.servicer.calculate_service_dependencies(self.service)
-
-        self.servicer.add_dependencies.assert_has_calls([
-            mock.call({}, self.service, 'test', 'service_1:build', persistent_steps=True),
-            mock.call({}, self.service, 'deploy', 'service_1:test', persistent_steps=True),
-        ])
-        self.assertEqual(result, {})
-
-    def test_ignores_steps_that_does_not_exist(self):
-        self.service['steps']['bad_step'] = {'config': {}}
-
-        result = self.servicer.calculate_service_dependencies(self.service)
-
-        self.servicer.add_dependencies.assert_has_calls([
-            mock.call({}, self.service, 'test', 'service_1:build', persistent_steps=True),
-            mock.call({}, self.service, 'deploy', 'service_1:test', persistent_steps=True),
-        ])
-        self.assertEqual(result, {})
-
-    def test_calculates_custom_service_dependencies(self):
-        self.service['depends_on'] = [
-            'service_2',
-        ]
-
-        result = self.servicer.calculate_service_dependencies(self.service)
-
-        self.servicer.add_dependencies.assert_has_calls([
-            mock.call({}, self.service, 'build', ['service_2']),
-            mock.call({}, self.service, 'test', 'service_1:build', persistent_steps=True),
-            mock.call({}, self.service, 'test', ['service_2']),
-            mock.call({}, self.service, 'deploy', 'service_1:test', persistent_steps=True),
-            mock.call({}, self.service, 'deploy', ['service_2']),
-        ])
-        self.assertEqual(result, {})
-
-    def test_calculates_custom_step_dependencies(self):
-        self.service['steps']['test']['depends_on'] = [
-            'service_2',
-            'service_3:build',
-        ]
-
-        result = self.servicer.calculate_service_dependencies(self.service)
-
-        self.servicer.add_dependencies.assert_has_calls([
-            mock.call({}, self.service, 'test', 'service_1:build', persistent_steps=True),
-            mock.call({}, self.service, 'test', ['service_2', 'service_3:build']),
-            mock.call({}, self.service, 'deploy', 'service_1:test', persistent_steps=True),
-        ])
-        self.assertEqual(result, {})
-
-class AddDependenciesTest(ServicerTest):
-    def setUp(self):
-        super().setUp()
-
-        self.servicer.config = {
-            'services': {
-                'service_1': {
-                    'name': 'service_1',
-                    'steps': {'build': {}, 'test': {}},
-                },
-                'service_2': {
-                    'name': 'service_2',
-                    'steps': {'build': {}, 'test': {}, 'deploy': {}},
-                },
-                'service_3': {
-                    'name': 'service_3',
-                    'steps': {'build': {}, 'test': {}},
-                },
-                'service_4': {
-                    'name': 'service_4',
-                    'steps': {'build': {}, 'deploy': {}},
-                },
-            },
-        }
-
-        self.servicer.steps = {
-            'build': {'name': 'build'},
-            'test': {'name': 'test'},
-            'deploy': {
-                'name': 'deploy',
-                'config': {'persists': True},
-            },
-        }
-
-        self.servicer.active_services = self.servicer.config['services'].keys()
-
-        self.service = {
-            'name': 'service_1',
-            'steps': {
-                'build': {'config': {}},
-                'test': {'config': {}},
-                'deploy': {'config': {}},
-            },
-        }
-        self.dependencies = {}
-
-    def test_adds_a_single_service_step_dependency(self):
-        result = self.servicer.add_dependencies(self.dependencies, self.service, 'build', 'service_2:build')
-
-        self.assertEqual(self.dependencies, {
-            'service_1:build': set(['service_2:build']),
-        })
-
-    def test_adds_a_list_of_service_dependencies(self):
-        result = self.servicer.add_dependencies(self.dependencies, self.service, 'test', ['service_2', 'service_3'])
-
-        self.assertEqual(self.dependencies, {
-            'service_1:test': set(['service_2:test', 'service_3:test']),
-        })
-
-    def test_skips_adding_nonexistant_steps_for_a_service_dependency(self):
-        result = self.servicer.add_dependencies(self.dependencies, self.service, 'test', 'service_4')
-
-        self.assertEqual(self.dependencies, {
-            'service_1:test': set(),
-        })
-
-    def test_adding_a_service_name_wildcard(self):
-        result = self.servicer.add_dependencies(self.dependencies, self.service, 'test', ['*:test'])
-
-        self.assertEqual(self.dependencies, {
-            'service_1:test': set(['service_1:test', 'service_2:test', 'service_3:test']),
-        })
-
-    def test_adds_a_list_of_service_step_dependencies(self):
-        result = self.servicer.add_dependencies(self.dependencies, self.service, 'deploy', [
-            'service_2:build',
-            'service_3:test',
-        ])
-
-        self.assertEqual(self.dependencies, {
-            'service_1:deploy': set(['service_2:build', 'service_3:test']),
-        })
-
-    def test_skips_persists_steps_by_default(self):
-        result = self.servicer.add_dependencies(self.dependencies, self.service, 'deploy', [
-            'service_2',
-            'service_3:deploy',
-        ])
-
-        self.assertEqual(self.dependencies, {
-            'service_1:deploy': set(),
-        })
-
-    def test_does_not_skips_a_persists_step(self):
-        result = self.servicer.add_dependencies(self.dependencies, self.service, 'deploy', [
-            'service_2',
-            'service_3:deploy',
-        ], persistent_steps=True)
-
-        self.assertEqual(self.dependencies, {
-            'service_1:deploy': set(['service_2:deploy', 'service_3:deploy']),
-        })
-
-    def test_errors_if_service_does_not_exist(self):
-        with self.assertRaises(ValueError) as context:
-            result = self.servicer.add_dependencies(self.dependencies, self.service, 'test', 'service_0')
-
-        self.assertTrue('Invalid service dependency specified: service_0, "service_0" must be included in services: [service_1,service_2,service_3,service_4]' in str(context.exception))
-
-    def test_errors_if_step_does_not_exist(self):
-        with self.assertRaises(ValueError) as context:
-            result = self.servicer.add_dependencies(self.dependencies, self.service, 'build', 'service_2:bad_step')
-
-        self.assertTrue('Invalid step dependency specified: service_2:bad_step, "bad_step" must be included in steps: [build,test,deploy]' in str(context.exception))
-
-class RunServiceStepsTest(ServicerTest):
-    def setUp(self):
-        super().setUp()
-
-        self.servicer.run_service_step = mock.Mock()
-
-        self.servicer.steps = {
-            'build': {'name': 'build'},
-            'test': {'name': 'test'},
-            'deploy': {'name': 'deploy', 'config': {'requires_service_environment': True}},
-        }
-
-        self.servicer.config = {
-            'services': {
-                'service_1': {
-                    'name': 'service_1',
-                    'steps': {
-                        'build': {'config': {}},
-                        'test': {'config': {}},
-                        'deploy': {'config': {'type': 'deploy'}},
-                    },
-                },
-                'service_2': {
-                    'name': 'service_2',
-                    'steps': {
-                        'build': {'config': {}},
-                        'test': {'config': {}},
-                        'deploy': {'config': {'type': 'deploy'}},
-                    },
-                },
-            },
-        }
-
-        self.servicer.service_step_order = [
-            ['service_1:build', 'service_2:build'],
-            ['service_1:test', 'service_2:test'],
-        ]
-
-    def test_runs_all_service_steps(self):
-        result = self.servicer.run_service_steps()
-
-        self.servicer.run_service_step.assert_has_calls([
-            mock.call(self.servicer.config['services']['service_1'], {'config': {}}),
-            mock.call(self.servicer.config['services']['service_2'], {'config': {}}),
-            mock.call(self.servicer.config['services']['service_1'], {'config': {}}),
-            mock.call(self.servicer.config['services']['service_2'], {'config': {}}),
-        ])
-
-    def test_skips_service_steps_that_require_a_service_environment(self):
-        self.servicer.service_step_order = [
-            ['service_1:build'],
-            ['service_1:deploy'],
-        ]
-
-        result = self.servicer.run_service_steps()
-
-        self.servicer.run_service_step.assert_has_calls([
-            mock.call(self.servicer.config['services']['service_1'], {'config': {}}),
-        ])
-
-    def test_runs_service_steps_that_require_a_service_environment(self):
-        self.servicer.service_environment = 'duck_tales'
-        self.servicer.service_step_order = [
-            ['service_1:build'],
-            ['service_1:deploy'],
-        ]
-
-        result = self.servicer.run_service_steps()
-
-        self.servicer.run_service_step.assert_has_calls([
-            mock.call(self.servicer.config['services']['service_1'], {'config': {}}),
-            mock.call(self.servicer.config['services']['service_1'], {'config': {'type': 'deploy'}}),
-        ])
+        self.assertEqual(result, ('qa', { 'branch': '*-qa', 'environment': 'qa' }))
 
 class RunServiceStepTest(ServicerTest):
     def setUp(self):
         super().setUp()
-
-        self.servicer.run = mock.Mock()
-        self.servicer.interpolate_tokens = mock.Mock()
 
         self.servicer.config = {}
 
@@ -488,7 +177,7 @@ class RunServiceStepTest(ServicerTest):
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
         self.servicer.run.assert_not_called()
-        self.servicer.interpolate_tokens.assert_not_called()
+        self.servicer.token_interpolator.interpolate_tokens.assert_not_called()
 
     def test_runs_a_service_step_with_config_and_no_module(self):
         self.service.pop('module')
@@ -498,7 +187,7 @@ class RunServiceStepTest(ServicerTest):
         self.servicer.load_service_module.assert_called_with(self.service)
 
         self.servicer.run.assert_not_called()
-        self.servicer.interpolate_tokens.assert_called_with(self.service['steps']['build']['config'], self.servicer.config, ignore_missing_key=True)
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build']['config'], self.servicer.config, ignore_missing_key=True)
         self.assertEqual(self.service['steps']['build']['results'], 'service-step results')
 
     def test_runs_a_service_step_with_module_and_no_config(self):
@@ -507,13 +196,13 @@ class RunServiceStepTest(ServicerTest):
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
         self.servicer.run.assert_not_called()
-        self.servicer.interpolate_tokens.assert_not_called()
+        self.servicer.token_interpolator.interpolate_tokens.assert_not_called()
 
     def test_runs_a_service_step_with_module_and_config(self):
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
         self.servicer.run.assert_not_called()
-        self.servicer.interpolate_tokens.assert_called_with(self.service['steps']['build']['config'], self.servicer.config, ignore_missing_key=True)
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build']['config'], self.servicer.config, ignore_missing_key=True)
 
         self.assertTrue('git' not in self.service['steps']['build']['config'])
         self.assertEqual(self.service['steps']['build']['results'], 'service-step results')
@@ -525,7 +214,7 @@ class RunServiceStepTest(ServicerTest):
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
         self.servicer.run.assert_not_called()
-        self.servicer.interpolate_tokens.assert_called_with(self.service['steps']['build']['config'], self.servicer.config, ignore_missing_key=True)
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build']['config'], self.servicer.config, ignore_missing_key=True)
 
         self.assertEqual(self.service['steps']['build']['config']['git'], {'module': {}})
         self.assertEqual(self.service['steps']['build']['results'], 'service-step results')
