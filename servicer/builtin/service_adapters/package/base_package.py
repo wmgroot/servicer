@@ -1,5 +1,6 @@
 import os
 import glob
+import json
 
 from ..service import Service as BaseService
 from servicer.git import Git
@@ -31,27 +32,39 @@ class Service(BaseService):
         for step in steps:
             getattr(self, step['type'])(**step.get('args', {}))
 
-    def set_auto_version(self, max_increment=10):
-        print('auto-versioning...')
+    def set_auto_version(self, max_increment=10, auto_detect_version=True):
+        print('auto-versioning (auto_detect_version=%s)...' % auto_detect_version)
+
         self.read_package_info(self.config['package_info'])
         if not isinstance(self.package_info, list):
             self.package_info = [self.package_info]
 
-        current_increment = 0
-        version_changed = False
-        while True:
-            invalid_versions = [self.if_package_version_exists(**p) for p in self.package_info]
-            if not any(invalid_versions):
-                break
+        if auto_detect_version:
+            current_increment = 0
+            version_changed = False
+            while True:
+                any_invalid_version = False
+                for pi in self.package_info:
+                    pi['version_exists'] = self.if_package_version_exists(**pi)
+                    if pi['version_exists']:
+                        any_invalid_version = True
 
-            if current_increment > max_increment:
-                raise ValueError('Max package_version auto-increment reached! %s-%s' % (self.package_info[0]['package_name'], self.package_info[0]['version']))
+                if not any_invalid_version:
+                    break
 
+                if current_increment > max_increment:
+                    raise ValueError('Max package_version auto-increment reached! %s-%s' % (self.package_info[0]['package_name'], self.package_info[0]['version']))
+
+                for pi in self.package_info:
+                    if 'version_exists' in pi and pi['version_exists']:
+                        pi['version'] = self.increment_version(pi['version'])
+
+                version_changed = True
+                current_increment += 1
+        else:
             for pi in self.package_info:
                 pi['version'] = self.increment_version(pi['version'])
-
             version_changed = True
-            current_increment += 1
 
         print('Automatic version decided: %s' % ['%s:%s' % (pi['name'], pi['version']) for pi in self.package_info])
 
@@ -100,12 +113,33 @@ class Service(BaseService):
     def if_package_version_exists(self, **package_info):
         print('checking for %s-%s...' % (package_info['name'], package_info['version']))
 
-        exists = package_info['version'] in self.get_existing_versions(**package_info)
-        if exists and 'action' in package_info:
+        version_list = None
+        if 'version_source' in self.config and self.config['version_source'] == 'gcr':
+            version_list = self.get_existing_gcr_versions(**package_info)
+        else:
+            version_list = self.get_existing_versions(**package_info)
+
+        print('existing versions: %s' % version_list)
+
+        package_info['version_exists'] = package_info['version'] in version_list
+        if package_info['version_exists'] and 'action' in package_info:
             if args['action'] == 'error':
                 raise ValueError('Package already exists! %s-%s' % (package_info['name'], package_info['version']))
 
-        return exists
+        return package_info['version_exists']
+
+    def get_existing_gcr_versions(self, **package_info):
+        docker_image = package_info['docker_image_path']
+        if 'name' in package_info:
+            docker_image = '%s/%s' % (docker_image, package_info['name'])
+
+        result = self.run('gcloud container images list-tags %s --format=json' % docker_image, hide_output=True)
+
+        tags = set()
+        for r in json.loads(result['stdout']):
+            tags.update(r['tags'])
+
+        return list(tags)
 
     def read_package_info(self, package_info={}):
         self.package_info = package_info

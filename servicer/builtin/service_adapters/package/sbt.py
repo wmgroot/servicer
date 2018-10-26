@@ -11,11 +11,11 @@ class Service(BasePackageService):
         self.sbt_credentials_path = os.getenv('SBT_CREDENTIALS_PATH', '%s/.sbt/.credentials' % os.environ['HOME'])
 
         self.name_regex = re.compile('^\s*name\s*:=\s*[\'\"]+(.*?)[\'\"].*$', re.MULTILINE)
-        self.version_regex = re.compile('^\s*version(?: in ThisBuild)? := [\'\"]+(\d+\.\d+\.\d+\.*\d*)(?:-SNAPSHOT)?[\'\"].*$', re.MULTILINE)
+        self.version_regex = re.compile('^\s*version.* := [\'\"]+(\d+\.\d+\.\d+\.*\d*)(?:-SNAPSHOT)?[\'\"].*$', re.MULTILINE)
         self.scala_version_regex = re.compile('^\s*(?:val )?scala(?:Version)?\s+:?= [\'\"]+(\d+\.\d+\.\d+)[\'\"].*$', re.MULTILINE)
         self.scala_cross_version_regex = re.compile('^\s*crossScalaVersions\s+:=\s+Seq\((.*)\).*$', re.MULTILINE)
 
-        self.package_version_format = 'version in ThisBuild := "%s"'
+        self.package_version_format = self.config.get('package_version_format', 'version in ThisBuild := "%s"')
 
     def generate_sbt_credentials(self, credentials=None):
         if credentials:
@@ -107,8 +107,5 @@ class Service(BasePackageService):
 
             body = response.json()
             versions.extend([child['uri'][1:] for child in body['children'] if child['folder']])
-
-        print('existing versions for: %s' % package_path)
-        print(versions)
 
         return versions
