@@ -72,6 +72,7 @@ class Service(BasePackageService):
                     pi['version'] = self.package_version(package_version_path)
                     pi['version_file_path'] = package_version_path
                     self.package_info.append(pi)
+                    self.results[pi['name']] = pi
 
     def scala_versions(self, path):
         with open(path) as f:

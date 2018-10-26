@@ -68,7 +68,7 @@ class Git():
             self.push(ref=':refs/tags/%s' % tag)
 
     def list_tags(self):
-        result = self.run('git tag')
+        result = self.run('git tag', hide_output=True)
         return result['stdout'].strip().split('\n')
 
     def sanitize_tag(self, tag):

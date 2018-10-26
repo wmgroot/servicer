@@ -9,21 +9,23 @@ import re
 import copy
 from datetime import datetime
 
-from .generate_ci_config import generate_ci_config
-from .topological_order import toposort2
-from .tokens import interpolate_tokens
-from .run import run
-from .git import Git
 from .config_loader import ConfigLoader
+from .dependency_grapher import DependencyGrapher
+from .generate_ci_config import generate_ci_config
+from .git import Git
+from .run import run
+from .token_interpolator import TokenInterpolator
 
 class Servicer():
-    def __init__(self, args=None):
+    def __init__(self, args=None, init=True):
+        if not init:
+            return
+
         self.datetime = datetime
 
         self.version = pkg_resources.get_distribution('servicer').version
         self.run = run
-        self.toposort2 = toposort2
-        self.interpolate_tokens = interpolate_tokens
+        self.token_interpolator = TokenInterpolator()
 
         if args == None:
             args = vars(self.load_arguments())
@@ -39,15 +41,27 @@ class Servicer():
         self.config_loader = ConfigLoader(args)
         self.config = self.config_loader.load_config()
 
-        self.normalize_ci_environment()
         self.determine_service_environment()
+        self.normalize_ci_environment()
+
         self.config_loader.interpolate_config(self.config)
+
+        if os.getenv('DEBUG'):
+            print('Services Config:')
+            print(json.dumps(self.config, indent=4, sort_keys=True, default=str))
+
+        if 'show_config' in self.config['args'] and self.config['args']['show_config']:
+            print('Services Config:')
+            print(json.dumps(self.config, indent=4, sort_keys=True, default=str))
+            sys.exit(0)
 
         self.git_init()
 
         self.load_steps()
         self.active_services = self.load_service_modules()
-        self.service_step_order = self.order_service_steps(self.active_services)
+        # self.service_step_order = self.order_service_steps(self.active_services)
+        self.dependency_grapher = DependencyGrapher(self.config, self.active_services, self.steps, self.step_order, self.active_steps)
+        self.service_step_order = self.dependency_grapher.order_service_steps(self.active_services)
 
         if 'generate_ci' in self.config['args'] and self.config['args']['generate_ci']:
             generate_ci_config(config=config, path='.')
@@ -61,9 +75,11 @@ class Servicer():
         parser.add_argument('--servicer_config_path', default='%s/.servicer' % os.getcwd(), help='path to your servicer directory (default is ./servicer)')
         parser.add_argument('--env_file_paths', default='%s/.servicer/.env.yaml:%s/.servicer/.env.yaml' % (os.getenv('HOME'), os.getcwd()), help='paths to your local .env files, colon-separated')
         parser.add_argument('--step', help='perform the comma-separated build steps, defaults to all steps')
-        parser.add_argument('--no_ignore', action='store_true', help='disables ignoring services through change detection')
+        parser.add_argument('--show_config', action='store_true', help='prints the interpolated config file')
+        parser.add_argument('--no_ignore_unchanged', action='store_true', help='disables ignoring services through change detection')
         parser.add_argument('--no_tag', action='store_true', help='disables build tagging')
         parser.add_argument('--no_auth', action='store_true', help='disables build authentication, useful if you are already authenticated locally')
+        parser.add_argument('--ignore_dependencies', action='store_true', help='disables automatic dependency execution')
         parser.add_argument('--version', action='store_true', help='display the package version')
         return parser.parse_args()
 
@@ -124,7 +140,6 @@ class Servicer():
         print('service environment: %s' % self.service_environment)
         if self.service_environment:
             os.environ['SERVICE_ENVIRONMENT'] = self.service_environment
-            print(os.environ['SERVICE_ENVIRONMENT'])
 
     def get_service_environment(self, branch):
         service_environment = None
@@ -132,12 +147,15 @@ class Servicer():
             return service_environment
 
         mappings = self.config['environment']['mappings']
-        service_environment = self.map_service_environment(branch, mappings)
+        service_environment, self.service_environment_config = self.map_service_environment(branch, mappings)
 
         if service_environment:
             for ch in ['\\', '/', '_']:
                 if ch in service_environment:
                     service_environment = service_environment.replace(ch, '-')
+
+            if 'variables' in self.service_environment_config:
+                self.config_loader.load_environment_variables(self.service_environment_config['variables'])
 
         return service_environment
 
@@ -151,12 +169,12 @@ class Servicer():
 
                 result = re.match(regex, branch)
                 if result:
-                    return m.get('environment', branch)
+                    return m.get('environment', branch), m
             elif 'tag' in m:
                 # TODO: support tag mapping
                 pass
 
-        return None
+        return None, None
 
     def git_init(self):
         if not 'git' in self.config or not self.config['git']['enabled']:
@@ -335,7 +353,7 @@ class Servicer():
             service['module'] = module
 
     def ignore_unchanged_services(self, services):
-        if 'no_ignore' in self.config['args'] and self.config['args']['no_ignore']:
+        if 'no_ignore_unchanged' in self.config['args'] and self.config['args']['no_ignore_unchanged']:
             return
 
         if not 'git' in self.config or not self.config['git']['enabled'] or not self.config['git']['ignore-unchanged']:
@@ -498,106 +516,6 @@ class Servicer():
         print('no module found!')
         sys.exit(1)
 
-    def order_service_steps(self, services):
-        dependencies = {}
-        for service_name in services:
-            service = self.config['services'][service_name]
-
-            for step_name in self.step_order:
-                if step_name in service['steps']:
-                    service_step = '%s:%s' % (service_name, step_name)
-                    if not service_step in dependencies:
-                        dependencies[service_step] = set()
-
-            service_deps = self.calculate_service_dependencies(service)
-            dependencies.update(service_deps)
-
-        print('Dependency Graph:')
-        print(json.dumps(dependencies, indent=4, sort_keys=True, default=str))
-        return self.toposort2(dependencies)
-
-    def calculate_service_dependencies(self, service):
-        dependencies = {}
-
-        previous_step = None
-        for step_name in self.step_order:
-            if step_name not in service['steps']:
-                continue
-
-            # default step based dependencies
-            if previous_step:
-                service_step = '%s:%s' % (service['name'], step_name)
-                dependency = '%s:%s' % (service['name'], previous_step)
-                self.add_dependencies(dependencies, service, step_name, dependency, persistent_steps=True)
-
-            previous_step = step_name
-
-            # step level user-defined custom dependencies
-            if 'depends_on' in service['steps'][step_name]:
-                self.add_dependencies(dependencies, service, step_name, service['steps'][step_name]['depends_on'])
-
-            # service level user-defined custom dependencies
-            if 'depends_on' in service:
-                self.add_dependencies(dependencies, service, step_name, service['depends_on'])
-
-        return dependencies
-
-    # TODO: might refactor dependency management to something like this in the future
-    # def calculate_service_step_dependencies(self, service, step_name):
-    #     dependencies = set()
-    #
-    #     # add default step based dependencies
-    #     start_index = self.step_order.index(step_name)
-    #     if start_index > 0:
-    #         for i in range(start_index - 1, -1, -1):   # iterate backward from nth - 1 to 0th step
-    #             step_dependency = self.step_order[i]
-    #             if step_dependency in service['steps']:
-    #                 dependencies.add('%s:%s' % (service['name'], step_dependency))
-
-    def add_dependencies(self, dependencies, service, step_name, depends_on, persistent_steps=False):
-        if not depends_on:
-            return
-
-        service_step = '%s:%s' % (service['name'], step_name)
-
-        if service_step not in dependencies:
-            dependencies[service_step] = set()
-
-        if not isinstance(depends_on, list):
-            depends_on = [depends_on]
-
-        for dep in depends_on:
-            dep_pieces = dep.split(':')
-            service_dependency = dep_pieces[0]
-
-            step_dependency = None
-            if len(dep_pieces) > 1:
-                step_dependency = dep_pieces[1]
-
-            # skip "persists: true" steps as dependencies unless persistent_steps=True
-            if not persistent_steps:
-                p_step = step_dependency or step_name
-                if p_step in self.steps and 'config' in self.steps[p_step] and 'persists' in self.steps[p_step]['config'] and self.steps[p_step]['config']['persists']:
-                    continue
-
-            if service_dependency == '*':
-                for _service_name in self.active_services:
-                    if step_dependency in self.config['services'][_service_name]['steps']:
-                        dependencies[service_step].add('%s:%s' % (_service_name, step_dependency))
-                continue
-            elif service_dependency not in self.config['services']:
-                msg = 'Invalid service dependency specified: %s, "%s" must be included in services: [%s]' % (dep, service_dependency, ','.join(self.config['services'].keys()))
-                raise ValueError(msg)
-
-            if step_dependency:
-                if step_dependency in self.steps:
-                    dependencies[service_step].add('%s:%s' % (service_dependency, step_dependency))
-                else:
-                    msg = 'Invalid step dependency specified: %s, "%s" must be included in steps: [%s]' % (dep, step_dependency, ','.join(self.steps.keys()))
-                    raise ValueError(msg)
-            elif step_name in self.config['services'][service_dependency]['steps']:
-                dependencies[service_step].add('%s:%s' % (service_dependency, step_name))
-
     def load_steps(self):
         self.steps = {}
         self.step_order = []
@@ -607,9 +525,9 @@ class Servicer():
                 self.step_order.append(step['name'])
 
         if 'step' in self.config['args'] and self.config['args']['step']:
-            self.step_order = self.config['args']['step'].split(',')
-
-        self.step_order_reversed = reversed(self.step_order)
+            self.active_steps = self.config['args']['step'].split(',')
+        else:
+            self.active_steps = self.step_order.copy()
 
     def run_service_steps(self):
         self.print_title('running service steps')
@@ -664,7 +582,7 @@ class Servicer():
         if 'config' in service_step:
             config = service_step.get('config')
             # allow value interpolation of prior step-service results
-            self.interpolate_tokens(config, self.config, ignore_missing_key=True)
+            self.token_interpolator.interpolate_tokens(config, self.config, ignore_missing_key=True)
 
             if 'git' in self.config and self.config['git']['enabled']:
                 if 'git' not in config:
@@ -672,6 +590,7 @@ class Servicer():
                 config['git']['module'] = self.git
 
             adapter = service['module'].Service(config)
+            adapter.full_config = self.config
             results = adapter.up()
 
             if results:

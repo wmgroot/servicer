@@ -1,20 +1,30 @@
 # Servicer #
 
-Servicer is a CI framework that runs inside popular CI platforms, such as Bitbucket Pipelines, Jenkins, and CircleCI. It also allows you to run and debug your CI jobs locally.
+Servicer is a configuration-based CI automation framework that runs inside popular CI platforms, such as Bitbucket Pipelines, Jenkins, and CircleCI.
 
-Servicer works with the *services* you define in `.servicer/services.yaml`, and takes *steps* to complete *jobs*.
+Core Features:
+* Run and debug your CI jobs locally.
+* Map your branches to independent service environments, allowing you to use the same process to deploy production, testing, and development environments.
+* Configure intelligent Change Detection, to only build the services and dependencies you need for the changes made (great for monorepos!).
+
+Servicer uses the *services* and *steps* you define in `.servicer/services.yaml`. A servicer execution will roughly do the following:
+1. Normalize the current CI environment (by standardizing environment variables).
+2. Construct the complete servicer configuration (interpolating dynamic value tokens).
+3. Determine which services can be ignored by Change Detection.
+4. Build a dependency graph of remaining service-steps.
+5. Execute each service-step in the order determined by the dependency graph.
 
 ## Separation of Concerns ##
 Servicer is separated into three main components: adapters, services, and the project environment.
 
 *Adapters* allow Servicer to use or interact with external systems, like Google Cloud Platform, GitHub, and Jenkins. Three kinds of adapters exist: CI adapters, auth adapters, and service adapters. These are written as reusable python modules, and are located in `servicer/builtin`.
 
- *Services* are the building blocks of your project. Services are defined in the .servicer/services.yaml file in your project, and these definitions include the configuration and commands needed to build, test and deploy each service. Additionally, service dependencies may be defined to automate the order services and steps are executed in.
+ *Services* are the building blocks of your project. Services are defined in the `.servicer/services.yaml` file in your project, and these definitions include the configuration and commands needed to build, test and deploy each service. Additionally, dependencies may be defined to automate the order services and steps are executed in.
 
 The *project environment* should contain environment variables for holding credentials and other secrets that should not be committed to source control. These can be configured on your CI tool, or, if you are running Servicer locally, from a `.servicer/*.env.yaml` file.
 
 ## Using Servicer ##
-For the simplest use case, use the command below. With it, Servicer's *job* will be to take every step for every service you've defined in `.servicer/services.yaml`.
+For the simplest use case, use the command below. With it, Servicer will execute every step for every service you've defined in `.servicer/services.yaml`.
 ```
 servicer
 ```
@@ -27,6 +37,8 @@ Steps, like build and unit_test, can also be specified.
 servicer --step=build,unit_test
 ```
 These commands can be run locally or in the context of a CI job.
+
+By default, all service-step dependencies will also be executed. If you will like to disable this behavior, use the `--ignore_dependencies` flag.
 
 ## Configuration ##
 `.servicer/services.yaml` must be present at the root of your project. `servicer/builtin/defaults.yaml` (in this repository) contains default values and descriptions of the values you can provide in `.servicer/services.yaml`.
@@ -75,15 +87,16 @@ The execution of steps is done at a project-wide scale. Given the above definiti
 Steps can be configured to be disregarded unless they are being run within an environment that matches one of the mappings defined in `environment` above. Given the environment defined above, `deploy` will be disregarded unless Servicer is running on the `master`, `develop`, or a `env-*` branch.
 
 ### Services ###
-*Services* are things that Servicer should handle, like portions of your project or pieces of third party software that your CI pipeline needs to work with. Servicer uses *service adapters* to work with these various services. Available *providers* are subdirectories of `servicer/builtin/service_adapters`. You can also add your own service adapter within your project by defining it.
+*Services* are things that Servicer should handle, like portions of your project or pieces of third party software that your CI pipeline needs to work with. Servicer uses *service adapters* to work with these various services. Builtin service adapters automatically available through servicer are defined in `servicer/builtin/service_adapters`. You can also add your own service adapter within your project by adding it to your `.servicer/service_adapters` directory.
 
 The service below builds a Docker image, and pushes/deploys it to the Google Container Registry.
 ```
 ...
 services:
   my_docker_image:              # User chosen name to identify this service
-    provider: gcloud            # Maps to the corresponding auth adapter defined in servicer/builtin/auth_adapters/
-    service_type: docker_image  # Maps to the corresponding service adapter defined in servicer/builtin/service_adapters/
+    providers:
+      - gcloud                  # Initializes the given provider entry before running steps
+    service_type: gcloud/docker_image  # Maps to the corresponding service adapter defined in servicer/builtin/service_adapters/
     steps:                      # Steps defined here must match a step defined in the `steps` list discussed above
       build:
         config:
@@ -107,15 +120,13 @@ services:
                   - latest
 ...
 ```
-There are two types of providers: those that build artifacts from code in the repository Servicer is working within (these are in `servicer/builtin/service_adapters/package`), and those that focus on interacting with external systems, like Google Kubernetes Clusters (other subdirectories of `servicer/builtin/service_adapters`).
+The `providers` key is an optional key that allows you to specify one or more provider dependencies for the service. These entries should match the keys listed in the `providers` section of your `services.yaml`. For each entry here, servicer will ensure that the correct provider has been initialized before the steps for the service are executed.
 
-In general, there are two types of service adapters (not including `provider`s): service adapters that connect Servicer with third parties, like Google Cloud Platform, or Amazon Web Services; and the `package` provider, which includes tools for building artifacts. Below is a service that builds a python package, and deploys it to Artifactory.
-
+Here is a service that builds a python package, and deploys it to Artifactory.
 ```
 ...
   my_python_package:
-    provider: package
-    service_type: pypi
+    service_type: package/pypi
     depends_on:
       - artifactory-pypi
       - pypi-credentials
@@ -143,6 +154,9 @@ In general, there are two types of service adapters (not including `provider`s):
 ```
 Using `depends_on` defines the other services your service depends on. Servicer will execute the dependee's matching step before executing the dependor's current step. In this case, Servicer will first execute the build steps for the `artifactory-pypi` and `pypi-credentials` services, which were created by the user and are not included here, before executing the `build` step for `my_python_package`.
 
+The `depends_on` key may also be used at the step level of your configuration. Below you can see that the `deploy` step for our `api-django` service contains a dependency on `postgres:deploy`. Servicer will ensure that the service-step `api-django:deploy` is executed after the service-step `postgres:deploy`.
+
+A wildcard may also be provided in the place of a service name. For example, `*:test`. This means that the given service or service-step depends on the completion of all other services' `test` step.
 ```
 ...
   postgres:
@@ -171,8 +185,6 @@ Using `depends_on` defines the other services your service depends on. Servicer 
 
   api-django:
     docker: true
-    depends_on:
-      - postgres
     provider: gcloud
     service_type: kube_cluster
 
@@ -180,7 +192,9 @@ Using `depends_on` defines the other services your service depends on. Servicer 
       build:
         commands:
           - docker build . -t ${PROJECT_NAME}-api
-      test:
+      deploy:
+        depends_on:
+          - postgres:deploy
         commands:
           - ./util/install-docker-compose.sh
         config:
@@ -301,6 +315,8 @@ GCLOUD_ZONE: us-central1-f
 PROJECT_NAME: my-project
 SERVICE_ENVIRONMENT: test
 ```
+
+`.env.yaml` can also be defined at `~/.servicer/.env.yaml` to support multi-project defaults. Values in the project level `.env.yaml` will take precedence over values in your user folder.
 
 ## Git Integration ##
 Servicer provides a few handy Git integrations to optimize jobs. By default, git integration is disabled. To enable it, set `git: enabled` to `true`.
