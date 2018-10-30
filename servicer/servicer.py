@@ -41,8 +41,8 @@ class Servicer():
         self.config_loader = ConfigLoader(args)
         self.config = self.config_loader.load_config()
 
-        self.determine_service_environment()
         self.normalize_ci_environment()
+        self.determine_service_environment()
 
         self.config_loader.interpolate_config(self.config)
 
