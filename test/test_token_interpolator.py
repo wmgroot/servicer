@@ -268,6 +268,12 @@ class EvaluateValueTest(TokenInterpolatorTest):
         )
         self.assertEqual(result, None)
 
+    def test_evaluates_a_string_literal(self):
+        result = self.token_interpolator.evaluate_value('"tacos"', {})
+
+        self.token_interpolator.dict_get_path.assert_not_called()
+        self.assertEqual(result, 'tacos')
+
     def test_evaluates_a_string_path(self):
         params = {
             'crunchy': {

@@ -32,7 +32,6 @@ class TokenInterpolator():
         return value
 
     def evaluate_token(self, value, params):
-        print('eval: %s' % value)
         if not (value.startswith('${') and value.endswith('}')):
             return value
 
@@ -49,6 +48,9 @@ class TokenInterpolator():
         return None
 
     def evaluate_value(self, value, params):
+        if value.startswith('"') and value.endswith('"'):
+            return value[1:-1]
+
         result = None
         path_pieces = value.split('.')
         if len(path_pieces) > 0:
