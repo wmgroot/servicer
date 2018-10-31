@@ -20,47 +20,43 @@ class TokenInterpolator():
 
         for match in re.findall(r'\${.+?}+', value):
             token = match[2:-1]
-            replace_value = None
 
-            pieces = token.split(':')
-            if len(pieces) > 2:
-                pieces[1] = ':'.join(pieces[1:])
-                pieces = pieces[:2]
+            replace_value = self.evaluate_token(match, params)
 
-            key = pieces[0]
-
-            if key not in params:
-                if len(pieces) > 1:
-                    # use default value
-                    replace_value = self.replace_tokens(pieces[1], params, ignore_missing_key=ignore_missing_key)
-                elif ignore_missing_key:
-                    replace_value = '${%s}' % ':'.join(pieces)
-
-            if replace_value == None:
-                replace_value = params[key]
-
-            if replace_value != None:
+            if replace_value:
                 for ev in escaped_values:
                     if ev in token:
                         token = token.replace(ev, '\%s' % ev)
-
-                replace_value = self.evaluate_value(replace_value, params)
-
                 value = re.sub(r'\${%s}' % token, replace_value, value)
 
         return value
 
-    def evaluate_value(self, value, params):
-        if not (value.startswith('{') and value.endswith('}')):
+    def evaluate_token(self, value, params):
+        print('eval: %s' % value)
+        if not (value.startswith('${') and value.endswith('}')):
             return value
 
-        path_pieces = value[1:-1].split('.')
+        pieces = value[2:-1].split(':')
+        if len(pieces) > 2:
+            pieces[1] = ':'.join(pieces[1:])
+            pieces = pieces[:2]
+
+        for p in pieces:
+            evaluated = self.evaluate_value(p, params)
+            if evaluated:
+                return evaluated
+
+        return None
+
+    def evaluate_value(self, value, params):
+        result = None
+        path_pieces = value.split('.')
         if len(path_pieces) > 0:
             path_value = self.dict_get_path(_dict=params, path=path_pieces, ignore_missing_key=True)
             if path_value:
-                value = path_value
+                result = path_value
 
-        return value
+        return result
 
     def dict_get_path(self, _dict={}, path=[], ignore_missing_key=False):
         if path == None or len(path) < 1:

@@ -177,7 +177,7 @@ class RunServiceStepTest(ServicerTest):
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
         self.servicer.run.assert_not_called()
-        self.servicer.token_interpolator.interpolate_tokens.assert_not_called()
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with({}, {})
 
     def test_runs_a_service_step_with_config_and_no_module(self):
         self.service.pop('module')
@@ -187,7 +187,7 @@ class RunServiceStepTest(ServicerTest):
         self.servicer.load_service_module.assert_called_with(self.service)
 
         self.servicer.run.assert_not_called()
-        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build']['config'], self.servicer.config, ignore_missing_key=True)
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build'], self.servicer.config)
         self.assertEqual(self.service['steps']['build']['results'], 'service-step results')
 
     def test_runs_a_service_step_with_module_and_no_config(self):
@@ -196,13 +196,13 @@ class RunServiceStepTest(ServicerTest):
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
         self.servicer.run.assert_not_called()
-        self.servicer.token_interpolator.interpolate_tokens.assert_not_called()
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with({}, {})
 
     def test_runs_a_service_step_with_module_and_config(self):
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
         self.servicer.run.assert_not_called()
-        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build']['config'], self.servicer.config, ignore_missing_key=True)
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build'], self.servicer.config)
 
         self.assertTrue('git' not in self.service['steps']['build']['config'])
         self.assertEqual(self.service['steps']['build']['results'], 'service-step results')
@@ -214,7 +214,7 @@ class RunServiceStepTest(ServicerTest):
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
         self.servicer.run.assert_not_called()
-        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build']['config'], self.servicer.config, ignore_missing_key=True)
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build'], self.servicer.config)
 
         self.assertEqual(self.service['steps']['build']['config']['git'], {'module': {}})
         self.assertEqual(self.service['steps']['build']['results'], 'service-step results')

@@ -21,5 +21,5 @@ steps:
           args:
             image: ${image}
             tags:
-              - ${PACKAGE_VERSION:{services.pypi.steps.build.results.package_version}}
-              - ${PACKAGE_VERSION_MAJOR:{services.pypi.steps.build.results.package_version_major}}.${PACKAGE_VERSION_MINOR:{services.pypi.steps.build.results.package_version_minor}}
+              - ${PACKAGE_VERSION:services.pypi.steps.build.results.package_version}
+              - ${PACKAGE_VERSION_MAJOR:services.pypi.steps.build.results.package_version_major}.${PACKAGE_VERSION_MINOR:services.pypi.steps.build.results.package_version_minor}

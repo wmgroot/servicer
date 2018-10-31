@@ -574,6 +574,9 @@ class Servicer():
         if 'module' not in service:
             self.load_service_module(service)
 
+        # allow interpolation of result values from prior service-steps
+        self.token_interpolator.interpolate_tokens(service_step, self.config)
+
         commands = service_step.get('commands')
         if commands:
             for c in commands:
@@ -581,8 +584,6 @@ class Servicer():
 
         if 'config' in service_step:
             config = service_step.get('config')
-            # allow value interpolation of prior step-service results
-            self.token_interpolator.interpolate_tokens(config, self.config, ignore_missing_key=True)
 
             if 'git' in self.config and self.config['git']['enabled']:
                 if 'git' not in config:

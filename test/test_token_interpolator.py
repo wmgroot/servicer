@@ -147,166 +147,128 @@ class ReplaceTokensTest(TokenInterpolatorTest):
     def setUp(self):
         super().setUp()
 
-        def evaluate_value(value, params):
-            return value
-
-        self.token_interpolator.replace_tokens = mock.Mock(side_effect=self.token_interpolator.replace_tokens)
-        self.token_interpolator.evaluate_value = mock.Mock(side_effect=evaluate_value)
+        self.token_interpolator.evaluate_token = mock.Mock(return_value=None)
 
     def test_handles_empty_string(self):
         result = self.token_interpolator.replace_tokens('', {})
 
-        self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('', {}),
-        ])
-        self.token_interpolator.evaluate_value.assert_not_called()
+        self.token_interpolator.evaluate_token.assert_not_called()
         self.assertEqual(result, '')
 
     def test_does_not_replace_a_string(self):
         result = self.token_interpolator.replace_tokens('foo', {})
 
-        self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('foo', {}),
-        ])
-        self.token_interpolator.evaluate_value.assert_not_called()
+        self.token_interpolator.evaluate_token.assert_not_called()
         self.assertEqual(result, 'foo')
 
     def test_replaces_a_string(self):
-        params = {'ONE': 'red'}
-        result = self.token_interpolator.replace_tokens('${ONE}', params)
+        self.token_interpolator.evaluate_token.return_value = 'red'
 
-        self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('${ONE}', params),
-        ])
-        self.assertEqual(self.token_interpolator.evaluate_value.mock_calls, [
-            mock.call('red', params),
+        result = self.token_interpolator.replace_tokens('${ONE}', {})
+
+        self.assertEqual(self.token_interpolator.evaluate_token.mock_calls, [
+            mock.call('${ONE}', {}),
         ])
         self.assertEqual(result, 'red')
 
     def test_replaces_multiple_strings(self):
-        params = {'ONE': 'red', 'TWO': 'blue'}
-        result = self.token_interpolator.replace_tokens('${TWO}+${ONE}', params)
+        self.token_interpolator.evaluate_token.side_effect = [
+            'red',
+            'blue',
+        ]
 
-        self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('${TWO}+${ONE}', params),
+        result = self.token_interpolator.replace_tokens('${ONE}+${TWO}', {})
+
+        self.assertEqual(self.token_interpolator.evaluate_token.mock_calls, [
+            mock.call('${ONE}', {}),
+            mock.call('${TWO}', {}),
         ])
+        self.assertEqual(result, 'red+blue')
+
+    def test_replaces_nested_strings(self):
+        self.token_interpolator.evaluate_token.side_effect = [
+            'red',
+        ]
+
+        result = self.token_interpolator.replace_tokens('${ONE:${TWO}}', {})
+
+        self.assertEqual(self.token_interpolator.evaluate_token.mock_calls, [
+            mock.call('${ONE:${TWO}}', {}),
+        ])
+        self.assertEqual(result, 'red')
+
+class EvaluateTokenTest(TokenInterpolatorTest):
+    def setUp(self):
+        super().setUp()
+
+        # once I think hard enough about how to recurse this
+        # self.token_interpolator.evaluate_token = mock.Mock(side_effect=self.token_interpolator.evaluate_token)
+        self.token_interpolator.evaluate_value = mock.Mock(return_value=None)
+
+    def test_handles_default_values_with_no_evaluated_value(self):
+        result = self.token_interpolator.evaluate_token('${TWO:family.genus.species}', {})
+
         self.assertEqual(self.token_interpolator.evaluate_value.mock_calls, [
-            mock.call('blue', params),
-            mock.call('red', params),
+            mock.call('TWO', {}),
+            mock.call('family.genus.species', {}),
         ])
-        self.assertEqual(result, 'blue+red')
+        self.assertEqual(result, None)
 
-    def test_ignores_default_value_if_matched(self):
-        params = {'ONE': 'red', 'TWO': 'blue', 'THREE': 'green'}
-        result = self.token_interpolator.replace_tokens('${TWO:2} bears', params)
-
-        self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('${TWO:2} bears', params),
+    def test_handles_default_values_with_an_evaluated_value(self):
+        self.token_interpolator.evaluate_value = mock.Mock(side_effect=[
+            None,
+            'bear',
         ])
+
+        result = self.token_interpolator.evaluate_token('${TWO:family.genus.species}', {})
+
         self.assertEqual(self.token_interpolator.evaluate_value.mock_calls, [
-            mock.call('blue', params),
+            mock.call('TWO', {}),
+            mock.call('family.genus.species', {}),
         ])
-        self.assertEqual(result, 'blue bears')
+        self.assertEqual(result, 'bear')
 
-    def test_falls_back_to_default_value(self):
-        params = {'ONE': 'red', 'THREE': 'green'}
-        result = self.token_interpolator.replace_tokens('${TWO:2} bears', params)
-
-        self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('${TWO:2} bears', params),
-            mock.call('2', params, ignore_missing_key=False),
+    def test_ignores_default_value_with_an_evaluated_value(self):
+        self.token_interpolator.evaluate_value = mock.Mock(side_effect=[
+            'blue',
         ])
+
+        result = self.token_interpolator.evaluate_token('${TWO:family.genus.species}', {})
+
         self.assertEqual(self.token_interpolator.evaluate_value.mock_calls, [
-            mock.call('2', params),
+            mock.call('TWO', {}),
         ])
-        self.assertEqual(result, '2 bears')
+        self.assertEqual(result, 'blue')
 
-    def test_evaluating_a_default_value(self):
-        params = {'ONE': 'red', 'family': {'genus': {'species': 'fuzzy'}}}
-        result = self.token_interpolator.replace_tokens('${TWO:{family.genus.species}} bears', params)
-
-        self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('${TWO:{family.genus.species}} bears', params),
-            mock.call('{family.genus.species}', params, ignore_missing_key=False),
+    def test_finds_single_evaluated_value(self):
+        self.token_interpolator.evaluate_value = mock.Mock(side_effect=[
+            'blue',
         ])
+
+        result = self.token_interpolator.evaluate_token('${TWO}', {})
+
         self.assertEqual(self.token_interpolator.evaluate_value.mock_calls, [
-            mock.call('{family.genus.species}', params),
+            mock.call('TWO', {}),
         ])
-        self.assertEqual(result, '{family.genus.species} bears')
-
-    def test_defaults_multiples_times(self):
-        params = {'ONE': 'red', 'THREE': 'green'}
-        result = self.token_interpolator.replace_tokens('${TWO:${THREE}} bears', params)
-
-        self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('${TWO:${THREE}} bears', params),
-            mock.call('${THREE}', params, ignore_missing_key=False),
-        ])
-        self.assertEqual(self.token_interpolator.evaluate_value.mock_calls, [
-            mock.call('green', params),
-            mock.call('green', params),
-        ])
-        self.assertEqual(result, 'green bears')
-
-    def test_nested_defaults(self):
-        params = {'ONE': 'red', 'THREE': 'green'}
-        result = self.token_interpolator.replace_tokens('${TWO:${FOUR:black}} bears', params)
-
-        self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('${TWO:${FOUR:black}} bears', params),
-            mock.call('${FOUR:black}', params, ignore_missing_key=False),
-            mock.call('black', params, ignore_missing_key=False),
-        ])
-        self.assertEqual(self.token_interpolator.evaluate_value.mock_calls, [
-            mock.call('black', params),
-            mock.call('black', params),
-        ])
-        self.assertEqual(result, 'black bears')
-
-    def test_ignores_missing_key(self):
-        params = {'ONE': 'red', 'THREE': 'green'}
-        result = self.token_interpolator.replace_tokens('${TWO} bears', params, ignore_missing_key=True)
-
-        self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('${TWO} bears', params, ignore_missing_key=True),
-        ])
-        self.assertEqual(self.token_interpolator.evaluate_value.mock_calls, [
-            mock.call('${TWO}', params),
-        ])
-        self.assertEqual(result, '${TWO} bears')
-
-    def test_ignores_missing_key_but_prefers_default(self):
-        params = {'ONE': 'red', 'THREE': 'green'}
-        result = self.token_interpolator.replace_tokens('${TWO:polar} bears', params, ignore_missing_key=True)
-
-        self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('${TWO:polar} bears', params, ignore_missing_key=True),
-            mock.call('polar', params, ignore_missing_key=True),
-        ])
-        self.assertEqual(self.token_interpolator.evaluate_value.mock_calls, [
-            mock.call('polar', params),
-        ])
-        self.assertEqual(result, 'polar bears')
+        self.assertEqual(result, 'blue')
 
 class EvaluateValueTest(TokenInterpolatorTest):
     def setUp(self):
         super().setUp()
 
-        self.token_interpolator.dict_get_path = mock.Mock()
+        self.token_interpolator.dict_get_path = mock.Mock(return_value=None)
 
-    def test_handles_empty_string(self):
-        result = self.token_interpolator.evaluate_value('', {})
-
-        self.token_interpolator.dict_get_path.assert_not_called()
-        self.assertEqual(result, '')
-
-    def test_ignores_non_eval_string(self):
+    def test_evaluates_a_single_string(self):
         result = self.token_interpolator.evaluate_value('tacos', {})
 
-        self.token_interpolator.dict_get_path.assert_not_called()
-        self.assertEqual(result, 'tacos')
+        self.token_interpolator.dict_get_path.assert_called_with(
+            path=['tacos'],
+            _dict={},
+            ignore_missing_key=True,
+        )
+        self.assertEqual(result, None)
 
-    def test_evaluates_a_string(self):
+    def test_evaluates_a_string_path(self):
         params = {
             'crunchy': {
                 'supreme': {
@@ -315,7 +277,7 @@ class EvaluateValueTest(TokenInterpolatorTest):
             },
         }
         self.token_interpolator.dict_get_path.return_value = 'locos'
-        result = self.token_interpolator.evaluate_value('{crunchy.supreme.doritos}', params)
+        result = self.token_interpolator.evaluate_value('crunchy.supreme.doritos', params)
 
         self.token_interpolator.dict_get_path.assert_called_with(
             path=['crunchy', 'supreme', 'doritos'],
@@ -325,15 +287,14 @@ class EvaluateValueTest(TokenInterpolatorTest):
         self.assertEqual(result, 'locos')
 
     def test_evaluates_string_but_not_found(self):
-        self.token_interpolator.dict_get_path.return_value = None
-        result = self.token_interpolator.evaluate_value('{crunchy.supreme.doritos}', {})
+        result = self.token_interpolator.evaluate_value('crunchy.supreme.doritos', {})
 
         self.token_interpolator.dict_get_path.assert_called_with(
             path=['crunchy', 'supreme', 'doritos'],
             _dict={},
             ignore_missing_key=True,
         )
-        self.assertEqual(result, '{crunchy.supreme.doritos}')
+        self.assertEqual(result, None)
 
 class DictGetPathTest(TokenInterpolatorTest):
     def setUp(self):
