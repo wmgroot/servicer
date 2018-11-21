@@ -8,8 +8,8 @@ from urllib.parse import quote
 from ..service import Service as BaseService
 
 class Service(BaseService):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, logger=None):
+        super().__init__(config, logger=logger)
 
         self.endpoint = os.environ['ARTIFACTORY_ENDPOINT']
         self.username = os.environ['ARTIFACTORY_USERNAME']
@@ -44,7 +44,7 @@ class Service(BaseService):
             self.upload_file(artifactory_path=path['ap'], local_path=path['lp'], errorOnExists=errorOnExists)
 
     def upload_file(self, artifactory_path=None, local_path=None, properties=None, errorOnExists=None):
-        print('uploading: %s -> %s' % (local_path, artifactory_path))
+        self.logger.log('uploading: %s -> %s' % (local_path, artifactory_path))
 
         if errorOnExists:
             self.file_exists(artifactory_path=artifactory_path, action='error')
@@ -59,8 +59,8 @@ class Service(BaseService):
               md5.update(block)
               sha1.update(block)
 
-        print("MD5: {0}".format(md5.hexdigest()))
-        print("SHA1: {0}".format(sha1.hexdigest()))
+        self.logger.log("MD5: {0}".format(md5.hexdigest()))
+        self.logger.log("SHA1: {0}".format(sha1.hexdigest()))
 
         url = '%s/%s' % (self.endpoint, artifactory_path)
 
@@ -88,7 +88,7 @@ class Service(BaseService):
             self.download_file(ap, local_path)
 
     def download_file(self, artifactory_path=None, local_path=None):
-        print('downloading: %s -> %s' % (artifactory_path, local_path))
+        self.logger.log('downloading: %s -> %s' % (artifactory_path, local_path))
 
         url = '%s/%s' % (self.endpoint, artifactory_path)
         response = requests.get(url, auth=HTTPBasicAuth(self.username, self.password), stream=True)
@@ -100,7 +100,7 @@ class Service(BaseService):
                 handle.write(block)
 
     def file_exists(self, artifactory_path=None, action=None):
-        print('searching for file: %s' % artifactory_path)
+        self.logger.log('searching for file: %s' % artifactory_path)
         file_name = artifactory_path.split('/')[-1]
         url = '%s/api/search/artifact?name=%s' % (self.endpoint, file_name)
 
@@ -111,7 +111,7 @@ class Service(BaseService):
 
         exists = False
         for result in body['results']:
-            print('result: %s' % result)
+            self.logger.log('result: %s' % result)
             if result['uri'].endswith(artifactory_path):
                 exists = True
 
@@ -126,7 +126,7 @@ class Service(BaseService):
 
         response = requests.get(url, auth=HTTPBasicAuth(self.username, self.password))
         if response.status_code == 200:
-            print('repository already exists: %s' % key)
+            self.logger.log('repository already exists: %s' % key)
         elif response.status_code == 400:
             self.create_repository(name=name, package_type=package_type, repo_type=repo_type, description=description)
         else:
@@ -134,7 +134,7 @@ class Service(BaseService):
 
     def create_repository(self, name=None, package_type=None, repo_type='local', description=''):
         key = '%s-%s' % (name, package_type)
-        print('creating repository: %s' % key)
+        self.logger.log('creating repository: %s' % key)
 
         url = '%s/api/repositories/%s' % (self.endpoint, key)
         data = {
@@ -143,7 +143,7 @@ class Service(BaseService):
             'rclass': repo_type,
             'description': description,
         }
-        print(data)
+        self.logger.log(data)
         response = requests.put(
             url,
             auth=HTTPBasicAuth(self.username, self.password),
@@ -154,14 +154,14 @@ class Service(BaseService):
             json=data,
         )
         response.raise_for_status
-        print(response.text)
+        self.logger.log(response.text)
 
     def ensure_permissions(self, name=None, repositories=[]):
         if not isinstance(name, list):
             name = [name]
 
         for n in name:
-            print('ensuring repository permissions for: %s' % n)
+            self.logger.log('ensuring repository permissions for: %s' % n)
 
             url = '%s/api/security/permissions/%s' % (self.endpoint, quote(n))
             response = requests.get(url, auth=HTTPBasicAuth(self.username, self.password))
@@ -172,13 +172,13 @@ class Service(BaseService):
             new_repositories = set(permission['repositories']) | set(repositories)
 
             if existing_repositories == new_repositories:
-                print('permissions up to date')
+                self.logger.log('permissions up to date')
             else:
-                print('old repository permissions: %s' % existing_repositories)
-                print('new repository permissions: %s' % new_repositories)
+                self.logger.log('old repository permissions: %s' % existing_repositories)
+                self.logger.log('new repository permissions: %s' % new_repositories)
 
                 permission['repositories'] = list(new_repositories)
-                print(permission)
+                self.logger.log(permission)
                 response = requests.put(
                     url,
                     auth=HTTPBasicAuth(self.username, self.password),
@@ -188,4 +188,4 @@ class Service(BaseService):
                     json=permission,
                 )
                 response.raise_for_status
-                print(response.text)
+                self.logger.log(response.text)

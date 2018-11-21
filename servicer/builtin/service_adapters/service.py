@@ -4,7 +4,8 @@ from servicer.run import run
 from servicer.token_interpolator import TokenInterpolator
 
 class Service:
-    def __init__(self, config=None):
+    def __init__(self, config=None, logger=None):
+        self.logger = logger
         self.run = run
 
         if config == None:

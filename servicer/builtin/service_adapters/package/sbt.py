@@ -5,8 +5,8 @@ import re
 from .base_package import Service as BasePackageService
 
 class Service(BasePackageService):
-    def __init__(self, config=None):
-        super().__init__(config=config)
+    def __init__(self, config=None, logger=None):
+        super().__init__(config=config, logger=logger)
 
         self.sbt_credentials_path = os.getenv('SBT_CREDENTIALS_PATH', '%s/.sbt/.credentials' % os.environ['HOME'])
 
@@ -28,13 +28,13 @@ class Service(BasePackageService):
                 'password': os.environ['SBT_CREDENTIALS_PASSWORD'],
             }
 
-        print('generating credentials at %s' % self.sbt_credentials_path)
+        self.logger.log('generating credentials at %s' % self.sbt_credentials_path)
         os.makedirs(os.path.dirname(self.sbt_credentials_path), exist_ok=True)
         with open(self.sbt_credentials_path, 'w') as creds:
             for key, value in self.credentials.items():
                 creds.write('%s=%s\n' % (key, value))
 
-        print('credentials written to %s' % self.sbt_credentials_path)
+        self.logger.log('credentials written to %s' % self.sbt_credentials_path)
 
     def read_package_info(self, package_info={}):
         package_file_paths = self.list_file_paths(self.config['package_directory'], '**/build.sbt')
@@ -102,7 +102,7 @@ class Service(BasePackageService):
 
         versions = []
         if response.status_code == 404:
-            print('WARNING: repository path not found: %s' % url)
+            self.logger.log('WARNING: repository path not found: %s' % url, level='warning')
         else:
             response.raise_for_status()
 

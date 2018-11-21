@@ -4,7 +4,6 @@ import os
 from .service import Service as BaseService
 
 class Service(BaseService):
-
     def up(self):
         super().up()
 
@@ -29,7 +28,7 @@ class Service(BaseService):
                 if output_path.endswith('/'):
                     output_path = '%s%s' % (output_path, os.path.basename(i))
 
-                print('interpolating tokens (%s -> %s)' % (i, output_path))
+                self.logger.log('interpolating tokens (%s -> %s)' % (i, output_path))
 
                 data = None
                 with open(i, 'r') as in_file:

@@ -24,7 +24,7 @@ class Service(GCloudService):
             'Bucket': self.config['bucket'],
         }
 
-        print('ensuring bucket exists: %s' % self.bucket)
+        self.logger.log('ensuring bucket exists: %s' % self.bucket)
         bucket = storage.Bucket(self.gs, name=self.bucket)
 
         region = self.config.get('region', os.getenv('GCLOUD_REGION'))

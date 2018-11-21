@@ -2,8 +2,8 @@ from .base_ci_adapter import BaseCIAdapter
 
 class CIAdapter(BaseCIAdapter):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, logger=None):
+        super().__init__(logger=logger)
 
         # https://circleci.com/docs/2.0/env-vars/#built-in-environment-variables
         self.env_map['CIRCLE_BRANCH'] = 'BRANCH'

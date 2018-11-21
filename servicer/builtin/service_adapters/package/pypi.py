@@ -5,8 +5,8 @@ import re
 from .base_package import Service as BasePackageService
 
 class Service(BasePackageService):
-    def __init__(self, config=None):
-        super().__init__(config=config)
+    def __init__(self, config=None, logger=None):
+        super().__init__(config=config, logger=logger)
         self.pypirc_path = os.getenv('PYPIRC_PATH', '%s/.pypirc' % os.environ['HOME'])
         self.pip_conf_path = os.getenv('PIP_CONF_PATH', '%s/.pip/pip.conf' % os.environ['HOME'])
 
@@ -62,7 +62,7 @@ class Service(BasePackageService):
         if 'path' in pypirc_config:
             self.pypirc_path = pypirc_config.pop('path')
 
-        print('generating .pypirc at %s' % self.pypirc_path)
+        self.logger.log('generating .pypirc at %s' % self.pypirc_path)
         os.makedirs(os.path.dirname(self.pypirc_path), exist_ok=True)
         with open(self.pypirc_path, 'w') as pypirc:
             pypirc.write('[distutils]\n')
@@ -78,7 +78,7 @@ class Service(BasePackageService):
                         pypirc.write('%s: %s\n' % (field, config[field]))
                 pypirc.write('\n')
 
-        print('.pypirc written to %s' % self.pypirc_path)
+        self.logger.log('.pypirc written to %s' % self.pypirc_path)
 
     def generate_pip_conf(self):
         pip_conf_config = self.pypi_config['pip.conf']
@@ -86,7 +86,7 @@ class Service(BasePackageService):
         if 'path' in pip_conf_config:
             self.pip_conf_path = pip_conf_config.pop('path')
 
-        print('generating pip.conf at %s' % self.pip_conf_path)
+        self.logger.log('generating pip.conf at %s' % self.pip_conf_path)
         os.makedirs(os.path.dirname(self.pip_conf_path), exist_ok=True)
         with open(self.pip_conf_path, 'w') as pipconf:
             for config in pip_conf_config['entries']:
@@ -95,7 +95,7 @@ class Service(BasePackageService):
                     pipconf.write('%s = %s\n' % (key, value))
                 pipconf.write('\n')
 
-        print('pip.conf written to %s' % self.pip_conf_path)
+        self.logger.log('pip.conf written to %s' % self.pip_conf_path)
 
     def upload(self, server='pypi', path='dist/*'):
         self.run('twine upload --config-file=%s %s -r %s' % (self.pypirc_path, path, server))
@@ -114,7 +114,7 @@ class Service(BasePackageService):
                     packages[package_name] = []
                 packages[package_name].append(version)
 
-        print('found these packages at (%s): %s' % (package_directory, packages))
+        self.logger.log('found these packages at (%s): %s' % (package_directory, packages))
 
         existing_packages = []
         for package, versions in packages.items():
@@ -125,7 +125,7 @@ class Service(BasePackageService):
 
         if existing_packages and action:
             if action == 'error':
-                print(existing_packages)
+                self.logger.log(existing_packages)
                 raise ValueError('Package already exists! %s-%s' % (package_name, version))
 
     def get_existing_versions(self, **package_info):

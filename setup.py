@@ -20,8 +20,8 @@ setup(
     },
     include_package_data = True,
     install_requires = [
-        'PyYAML==3.12',
-        'requests==2.18.4',
+        'PyYAML==3.13',
+        'requests==2.20.1',
     ],
     keywords = 'ci cd automation environment service',
     license = 'BSD3',
@@ -30,5 +30,5 @@ setup(
     packages = find_packages(),
     python_requires = '>=3.5',
     url = 'https://github.com/wmgroot/servicer',
-    version = '0.9.1',
+    version = '0.9.2',
 )

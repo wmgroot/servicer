@@ -5,9 +5,10 @@ import yaml
 from .token_interpolator import TokenInterpolator
 
 class ConfigLoader():
-    def __init__(self, args={}):
+    def __init__(self, args={}, logger=None):
         self.args = args
         self.token_interpolator = TokenInterpolator()
+        self.logger = logger
         self.module_path = os.path.dirname(os.path.realpath(globals()['__file__']))
         self.servicer_config_path = args.get('servicer_config_path')
         self.servicer_config_file_path = '%s/%s' % (self.servicer_config_path, args.get('services_file'))
@@ -16,7 +17,7 @@ class ConfigLoader():
         services_config = {}
 
         if self.servicer_config_path and self.servicer_config_file_path:
-            print('loading services config from (%s)' % self.servicer_config_file_path)
+            self.logger.log('loading services config from (%s)' % self.servicer_config_file_path)
             self.load_extended_config(config_path=self.servicer_config_file_path, config=services_config)
             services_config = self.merge_defaults(config=services_config)
             self.merge_included_configs(config_path=self.servicer_config_file_path, config=services_config)
@@ -38,7 +39,7 @@ class ConfigLoader():
         if 'extends' in merge_config:
             config_path_pieces = config_path.split('/')
             inherit_path = '%s/%s' % ('/'.join(config_path_pieces[:-1]), merge_config.pop('extends'))
-            print('Extending: %s' % inherit_path)
+            self.logger.log('Extending: %s' % inherit_path)
             self.load_extended_config(config_path=inherit_path, config=config)
 
         self.merge_config(config, merge_config)
@@ -75,7 +76,7 @@ class ConfigLoader():
             config_path_pieces = config_path.split('/')
             include_path = '%s/%s' % ('/'.join(config_path_pieces[:-1]), path)
 
-            print('Including: %s' % include_path)
+            self.logger.log('Including: %s' % include_path)
 
             include_config = {}
             self.load_extended_config(config_path=include_path, config=include_config)
@@ -105,7 +106,7 @@ class ConfigLoader():
         return merge_to
 
     def interpolate_config(self, config):
-        print('Interpolating Tokens...')
+        self.logger.log('Interpolating Tokens...')
         self.token_interpolator.interpolate_tokens(config, os.environ, ignore_missing_key=True)
 
     def load_environment_variables(self, variables={}):

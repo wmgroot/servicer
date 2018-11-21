@@ -16,6 +16,8 @@ git:
   auto-set-branch: true
   # if COMMIT env var is not set, use git to determine the current commit
   auto-set-commit: true
+  # automatically push a git tag for each successful build (used by change detection)
+  auto-tag: true
 
   # short form commit minimum length
   commit-min-length: 10
