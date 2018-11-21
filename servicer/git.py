@@ -5,18 +5,11 @@ from urllib.parse import quote_plus
 from .run import run
 
 class Git():
-    def __init__(self, hide_output=True, protocol='ssh'):
+    def __init__(self, hide_output=True, protocol='ssh', logger=None):
         self.run = run
+        self.logger = logger
         self.hide_output = hide_output
         self.protocol = os.getenv('GIT_PROTOCOL', protocol)
-
-    # deprecated, use diff with merge_base=True instead
-    # def files_changed_ahead_of_ref(self, ref):
-    #     forward_commits = self.commits_against_ref(ref, commit_type='+')
-    #     files_changed = set()
-    #     for c in forward_commits:
-    #         files_changed.update(self.diff(a='%s~' % c, b=c, name_only=True))
-    #     return sorted(list(files_changed))
 
     def authors_for_changes_ahead_of_ref(self, ref):
         forward_commits = self.commits_against_ref(ref, commit_type='+')
@@ -71,9 +64,13 @@ class Git():
         result = self.run('git tag', hide_output=True)
         return result['stdout'].strip().split('\n')
 
+    def list_remote_branches(self):
+        result = self.run('git branch -r', hide_output=True)
+        return result['stdout'].strip().split('\n')
+
     def sanitize_tag(self, tag):
-        for ch in '/ [ ]'.split():
-            tag.replace(ch, '.')
+        for ch in '[ ]'.split():
+            tag = tag.replace(ch, '.')
         return tag
 
     def set_config(self, config=None):

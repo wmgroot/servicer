@@ -4,8 +4,9 @@ import os
 from .topological_order import toposort2
 
 class DependencyGrapher():
-    def __init__(self, config, active_services, steps, step_order, active_steps):
+    def __init__(self, config, active_services, steps, step_order, active_steps, logger=None):
         self.toposort2 = toposort2
+        self.logger = logger
         self.config = config
         self.active_services = active_services
         self.steps = steps
@@ -35,8 +36,8 @@ class DependencyGrapher():
             for key, value in dependencies.items():
                 dependencies[key] = set([v for v in value if v in dep_keys])
 
-        print('Dependency Graph:')
-        print(json.dumps(dependencies, indent=4, sort_keys=True, default=str))
+        self.logger.log('Dependency Graph:')
+        self.logger.log(json.dumps(dependencies, indent=4, sort_keys=True, default=str))
         return self.toposort2(dependencies)
 
     def service_step_depends_on(self, service_step_name):

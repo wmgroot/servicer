@@ -4,6 +4,7 @@ from servicer.dependency_grapher import DependencyGrapher
 
 class DependencyGrapherTest(TestCase):
     def setUp(self):
+        self.logger = mock.Mock()
         self.dependency_grapher = DependencyGrapher(
             config={
                 'args': {'ignore_dependencies': False},
@@ -38,6 +39,7 @@ class DependencyGrapherTest(TestCase):
                 'test',
                 'deploy',
             ],
+            logger=self.logger,
         )
         self.dependency_grapher.toposort2 = mock.Mock()
 

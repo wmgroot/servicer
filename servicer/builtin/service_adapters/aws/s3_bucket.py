@@ -22,7 +22,7 @@ class Service(AWSService):
             'Bucket': self.config['bucket'],
         }
 
-        print('ensuring bucket exists: %s' % bucket_args['Bucket'])
+        self.logger.log('ensuring bucket exists: %s' % bucket_args['Bucket'])
         try:
             self.s3.meta.client.head_bucket(**bucket_args)
         except ClientError:
@@ -42,7 +42,7 @@ class Service(AWSService):
         self.run(command, shell=True)
 
     def url_to_s3(self, key=None, url=None):
-        print('downloading: %s -> s3://%s/%s' % (url, self.config['bucket'], key))
+        self.logger.log('downloading: %s -> s3://%s/%s' % (url, self.config['bucket'], key))
         req_for_image = requests.get(url, stream=True)
         file_object_from_req = req_for_image.raw
         req_data = file_object_from_req.read()

@@ -6,8 +6,8 @@ from ..task_service import Service as BaseService
 from ..request_service import Service as RequestService
 
 class Service(BaseService, RequestService):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, logger=None):
+        super().__init__(config, logger=logger)
 
         self.base_url = self.config.get('endpoint', os.environ['CONSUL_ENDPOINT'])
         self.token = self.config.get('token', os.environ['CONSUL_TOKEN'])
@@ -24,7 +24,7 @@ class Service(BaseService, RequestService):
                 data = self.token_interpolator.replace_tokens(data, os.environ, ignore_missing_key=True)
 
                 consul_url = '%s%s' % (self.base_path, f['consul_path'])
-                print('writing file to consul: %s -> %s' % (f['file_path'], consul_url))
+                self.logger.log('writing file to consul: %s -> %s' % (f['file_path'], consul_url))
 
                 self.consul_request(
                     data=data,
@@ -34,7 +34,7 @@ class Service(BaseService, RequestService):
 
     def read(self, **params):
         response = self.consul_request(url='%s%s' % (self.base_path, params['path']))
-        print(response.text)
+        self.logger.log(response.text)
 
     def consul_request(self, **params):
         if 'headers' not in params:

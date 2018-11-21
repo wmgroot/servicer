@@ -11,13 +11,15 @@ from datetime import datetime
 
 from .config_loader import ConfigLoader
 from .dependency_grapher import DependencyGrapher
-from .generate_ci_config import generate_ci_config
 from .git import Git
 from .run import run
 from .token_interpolator import TokenInterpolator
+from .logger import Logger
 
 class Servicer():
     def __init__(self, args=None, init=True):
+        self.logger = Logger()
+
         if not init:
             return
 
@@ -25,47 +27,55 @@ class Servicer():
 
         self.version = pkg_resources.get_distribution('servicer').version
         self.run = run
-        self.token_interpolator = TokenInterpolator()
+        self.token_interpolator = TokenInterpolator(logger=self.logger)
 
         if args == None:
             args = vars(self.load_arguments())
 
         if 'version' in args and args['version']:
-            print(self.version)
+            self.logger.log(self.version)
             sys.exit(0)
 
-        print('servicer version: %s' % self.version)
+        self.logger.log('servicer version: %s' % self.version)
 
         self.load_environment(args)
 
-        self.config_loader = ConfigLoader(args)
+        self.config_loader = ConfigLoader(args, logger=self.logger)
         self.config = self.config_loader.load_config()
+        self.active_services = None
 
         self.normalize_ci_environment()
         self.determine_service_environment()
 
         self.config_loader.interpolate_config(self.config)
 
-        if os.getenv('DEBUG'):
-            print('Services Config:')
-            print(json.dumps(self.config, indent=4, sort_keys=True, default=str))
+        self.logger.log('Services Config:', level='debug')
+        self.logger.log(json.dumps(self.config, indent=4, sort_keys=True, default=str), level='debug')
 
         if 'show_config' in self.config['args'] and self.config['args']['show_config']:
-            print('Services Config:')
-            print(json.dumps(self.config, indent=4, sort_keys=True, default=str))
+            self.logger.log('Services Config:')
+            self.logger.log(json.dumps(self.config, indent=4, sort_keys=True, default=str))
             sys.exit(0)
 
         self.git_init()
 
-        self.load_steps()
-        self.active_services = self.load_service_modules()
-        # self.service_step_order = self.order_service_steps(self.active_services)
-        self.dependency_grapher = DependencyGrapher(self.config, self.active_services, self.steps, self.step_order, self.active_steps)
-        self.service_step_order = self.dependency_grapher.order_service_steps(self.active_services)
+        self.decide_service_step_order()
 
-        if 'generate_ci' in self.config['args'] and self.config['args']['generate_ci']:
-            generate_ci_config(config=config, path='.')
-            sys.exit(0)
+    def decide_service_step_order(self):
+        self.load_steps()
+
+        if not self.active_services:
+            self.active_services = self.load_service_modules()
+
+        self.dependency_grapher = DependencyGrapher(
+            self.config,
+            self.active_services,
+            self.steps,
+            self.step_order,
+            self.active_steps,
+            logger=self.logger,
+        )
+        self.service_step_order = self.dependency_grapher.order_service_steps(self.active_services)
 
     def load_arguments(self):
         parser = argparse.ArgumentParser(description='Process deployment options.')
@@ -80,6 +90,7 @@ class Servicer():
         parser.add_argument('--no_tag', action='store_true', help='disables build tagging')
         parser.add_argument('--no_auth', action='store_true', help='disables build authentication, useful if you are already authenticated locally')
         parser.add_argument('--ignore_dependencies', action='store_true', help='disables automatic dependency execution')
+        parser.add_argument('--tag', action='store_true', help='generate a git tag')
         parser.add_argument('--version', action='store_true', help='display the package version')
         return parser.parse_args()
 
@@ -95,15 +106,15 @@ class Servicer():
             self.load_env_file(path)
 
     def load_env_file(self, path):
-        print('checking for (.env.yaml) at (%s)' % path)
+        self.logger.log('checking for (.env.yaml) at (%s)' % path)
         if os.path.exists(path):
-            print('(.env.yaml) found, including these arguments:')
+            self.logger.log('(.env.yaml) found, including these arguments:')
 
             yaml_dict = yaml.load(open(path))
             for key, value in yaml_dict.items():
                 os.environ[key] = value
-                print(key)
-            print()
+                self.logger.log(key)
+            self.logger.log()
 
     def normalize_ci_environment(self):
         if 'ci' not in self.config:
@@ -113,7 +124,7 @@ class Servicer():
 
         self.config['ci']['adapters'] = {}
         for p in self.config['ci']['providers']:
-            print('CI Adapter: %s' % p)
+            self.logger.log('CI Adapter: %s' % p)
             ci_adapter_modules = [
                 {
                     'name': 'ci_adapters.%s' % p,
@@ -127,17 +138,25 @@ class Servicer():
                 },
             ]
             module = self.load_module_from_paths(ci_adapter_modules)
-            self.config['ci']['adapters'][p] = module.CIAdapter()
+            self.config['ci']['adapters'][p] = module.CIAdapter(logger=self.logger)
+
+        if 'generate_ci' in self.config['args'] and self.config['args']['generate_ci']:
+            for ci_adapter in self.config['ci']['adapters'].values():
+                self.active_services = self.config['services'].keys()
+                self.decide_service_step_order()
+
+                ci_adapter.generate_ci_config(self.config, self.service_step_order)
+            sys.exit(0)
 
         for ci_adapter in self.config['ci']['adapters'].values():
             ci_adapter.convert_environment_variables()
 
     def determine_service_environment(self):
-        print()
+        self.logger.log()
         self.service_environment = os.getenv('SERVICE_ENVIRONMENT') or self.get_service_environment(os.getenv('BRANCH', 'local'))
 
-        print('branch: %s' % os.getenv('BRANCH'))
-        print('service environment: %s' % self.service_environment)
+        self.logger.log('branch: %s' % os.getenv('BRANCH'))
+        self.logger.log('service environment: %s' % self.service_environment)
         if self.service_environment:
             os.environ['SERVICE_ENVIRONMENT'] = self.service_environment
 
@@ -182,7 +201,7 @@ class Servicer():
 
         self.print_title('initializing git integration')
 
-        git_args = { 'hide_output': 'DEBUG' not in os.environ }
+        git_args = { 'hide_output': 'DEBUG' not in os.environ, 'logger': self.logger }
         if 'protocol' in self.config['git']:
             git_args['protocol'] = self.config['git']['protocol']
         self.git = Git(**git_args)
@@ -209,10 +228,14 @@ class Servicer():
         if 'fetch-tags' in self.config['git'] and self.config['git']['fetch-tags']:
             self.run('git fetch --tags')
 
+        if 'tag' in self.config['args'] and self.config['args']['tag']:
+            self.tag_build(check_git=False)
+            sys.exit(0)
+
         if 'GIT_DIFF_REF' in os.environ:
             result = self.run('git cat-file -t %s' % os.environ['GIT_DIFF_REF'], check=False)
             if result['status'] != 0:
-                print('Invalid GIT_DIFF_REF provided!')
+                self.logger.log('Invalid GIT_DIFF_REF provided!')
             else:
                 self.config['git']['diff-ref'] = os.environ['GIT_DIFF_REF']
 
@@ -221,10 +244,9 @@ class Servicer():
                 servicer_tag_part = 'servicer-%s' % self.git.sanitize_tag(os.environ['BRANCH'])
                 self.build_tags = [t for t in self.git.list_tags() if t.startswith(servicer_tag_part)]
 
-                if os.getenv('DEBUG'):
-                    print('branch tag: %s' % servicer_tag_part)
-                    print('matching tags:')
-                    print('\n'.join(self.build_tags))
+                self.logger.log('branch tag: %s' % servicer_tag_part, level='debug')
+                self.logger.log('matching tags:', level='debug')
+                self.logger.log('\n'.join(self.build_tags), level='debug')
 
                 if len(self.build_tags) > 0:
                     self.config['git']['diff-ref'] = self.build_tags[-1]
@@ -235,47 +257,71 @@ class Servicer():
                 if result['status'] == 0:
                     latest_tag = result['stdout'].strip()
                     if latest_tag:
-                        print('defaulting to latest servicer git tag')
+                        self.logger.log('defaulting to latest servicer git tag')
                         self.config['git']['diff-ref'] = latest_tag
 
             # TODO: remove this feature in next breaking update
             if 'default-branch' in self.config['git'] and self.config['git']['default-branch'] and 'diff-ref' not in self.config['git']:
                 if os.environ['BRANCH'] != self.config['git']['default-branch']:
-                    print('defaulting Git Diff Ref to default-branch')
+                    self.logger.log('defaulting Git Diff Ref to default-branch')
                     self.config['git']['diff-ref'] = 'origin/%s' % self.config['git']['default-branch']
 
         if 'diff-ref' in self.config['git']:
-            print('Git Diff Ref: %s\n' % self.config['git']['diff-ref'])
+            self.logger.log('Git Diff Ref: %s\n' % self.config['git']['diff-ref'])
 
         if self.config['git']['ignore-servicer-commits'] and 'diff-ref' in self.config['git']:
             authors = self.git.authors_for_changes_ahead_of_ref(self.config['git']['diff-ref'])
-            print('Commit authors: %s' % authors)
+            self.logger.log('Commit authors: %s' % authors)
             if 'servicer' in authors:
-                print('Automated servicer changes were detected, skipping this build.')
+                self.logger.log('Automated servicer changes were detected, skipping this build.')
                 sys.exit(0)
 
-    def tag_build(self):
-        if not 'git' in self.config or not self.config['git']['enabled']:
-            return
+    def tag_build(self, check_git=True):
+        if check_git:
+            if not 'git' in self.config or not self.config['git']['enabled']:
+                return
 
-        if not self.config['git']['diff-tagging-enabled'] or 'BUILD_NUMBER' not in os.environ:
-            return
+            if not self.config['git']['auto-tag'] or 'BUILD_NUMBER' not in os.environ:
+                return
 
-        if 'no_tag' in self.config['args'] and self.config['args']['no_tag']:
-            return
+            if 'no_tag' in self.config['args'] and self.config['args']['no_tag']:
+                return
 
-        servicer_tag = self.servicer_git_tag()
+        # servicer_tag = self.servicer_git_tag()
+        servicer_tag = 'foo'
         if servicer_tag:
-            print('Build complete, tagging: %s' % servicer_tag)
-            self.git.tag(servicer_tag, push=True)
+            self.logger.log('Tagging: %s' % servicer_tag)
+            # self.git.tag(servicer_tag, push=True)
 
-            print('Removing old tags...')
-            if servicer_tag in self.build_tags:
-                self.build_tags.remove(servicer_tag)
-            self.remove_stale_tags(self.build_tags)
+            # self.logger.log('Removing old tags...')
+            # if servicer_tag in self.build_tags:
+            #     self.build_tags.remove(servicer_tag)
+            # self.remove_stale_tags(self.build_tags)
+            self.remove_stale_tags()
 
-    def remove_stale_tags(self, tags):
-        self.git.delete_tag(tags)
+    def remove_stale_tags(self):
+        self.logger.log('Removing old tags...')
+
+        self.run('git fetch')
+
+        build_tags = [t for t in self.git.list_tags() if t.startswith('servicer-')]
+        branches = ['/'.join(b.split('/')[1:]) for b in self.git.list_remote_branches()]
+        tag_prefixes = [self.git.sanitize_tag(b) for b in branches]
+        self.logger.log('\ntag prefixes:', level='debug')
+        self.logger.log('\n'.join(tag_prefixes), level='debug')
+
+        valid_tags = set()
+        for tp in tag_prefixes:
+            prefix = 'servicer-%s' % tp
+            for bt in build_tags:
+                if bt.startswith(prefix):
+                    valid_tags.add(bt)
+
+        tags_to_delete = list(set(build_tags) - valid_tags)
+        self.logger.log('\ntags to delete:', level='debug')
+        self.logger.log('\n'.join(tags_to_delete), level='debug')
+
+        self.git.delete_tag(tags_to_delete)
 
     def servicer_git_tag(self):
         if 'BRANCH' not in os.environ:
@@ -297,7 +343,7 @@ class Servicer():
         elif 'services' in self.config:
             active_services.extend(self.config['services'].keys())
 
-        print('Active Services:\n%s\n' % '\n'.join(active_services))
+        self.logger.log('Active Services:\n%s\n' % '\n'.join(active_services))
 
         self.ignore_unchanged_services(active_services)
 
@@ -360,12 +406,12 @@ class Servicer():
             return
 
         if 'diff-ref' not in self.config['git']:
-            print('No GIT_DIFF_REF found, aborting change detection.')
+            self.logger.log('No GIT_DIFF_REF found, aborting change detection.')
             return
 
         diff_files = self.git.diff(self.config['git']['diff-ref'], name_only=True, merge_base=True)
-        print('\nChanged Files:')
-        print('\n'.join(diff_files))
+        self.logger.log('\nChanged Files:')
+        self.logger.log('\n'.join(diff_files))
 
         # TODO: think through what top level 'watch_paths' means
         if 'ignore_paths' in self.config['git']:
@@ -381,9 +427,8 @@ class Servicer():
                 if 'watch_paths' in service['git']:
                     watch_regexes = [self.sanitize_regex(matcher) for matcher in service['git']['watch_paths']]
 
-                    if os.getenv('DEBUG'):
-                        print('\nService: %s' % service_name)
-                        print('Matchers:')
+                    self.logger.log('\nService: %s' % service_name, level='debug')
+                    self.logger.log('Matchers:', level='debug')
 
                     service_changed_files, _ = self.match_regexes(diff_files, watch_regexes)
 
@@ -392,19 +437,18 @@ class Servicer():
                     _, service_changed_files = self.match_regexes(service_changed_files, ignore_regexes)
 
                 if len(service_changed_files) > 0:
-                    if os.getenv('DEBUG'):
-                        print('\nChanged Files:')
-                        print('\n'.join(service_changed_files))
+                    self.logger.log('\nChanged Files:', level='debug')
+                    self.logger.log('\n'.join(service_changed_files), level='debug')
                 else:
                     ignored_services.append(service_name)
 
-        print('\nIgnored Services:')
+        self.logger.log('\nIgnored Services:')
         for sn in ignored_services:
-            print(sn)
+            self.logger.log(sn)
             services.remove(sn)
 
-        print('\nChanged Services:')
-        print('\n'.join(services))
+        self.logger.log('\nChanged Services:')
+        self.logger.log('\n'.join(services))
 
     def sanitize_regex(self, matcher):
         if matcher.startswith('/') and matcher.endswith('/'):
@@ -423,8 +467,7 @@ class Servicer():
             for regex in regexes:
                 result = re.match(regex, s)
 
-                if os.getenv('DEBUG'):
-                    print('%s ~= %s -> %s' % (regex, s, result))
+                self.logger.log('%s ~= %s -> %s' % (regex, s, result), level='debug')
 
                 if result:
                     matches.append(s)
@@ -435,7 +478,7 @@ class Servicer():
 
     def try_initialize_provider(self, provider_name, service):
         if 'no_auth' in self.config['args'] and self.config['args']['no_auth']:
-            print('skipping provider initialization for %s (no_auth enabled, assuming already authenticated)' % provider_name)
+            self.logger.log('skipping provider initialization for %s (no_auth enabled, assuming already authenticated)' % provider_name)
             return
 
         provider = self.config['providers'].get(provider_name)
@@ -464,12 +507,12 @@ class Servicer():
 
     def initialize_provider(self, provider, force_authenticate=False):
         self.print_title('intializing provider: %s' % provider['name'])
-        print('force_authenticate: %s' % force_authenticate)
+        self.logger.log('force_authenticate: %s' % force_authenticate, level='debug')
 
         if 'libraries' in provider and provider['libraries']:
             self.run('%s install %s' % (os.getenv('PIP_EXE', 'pip'), ' '.join(provider['libraries'])))
         if 'auth_script' in provider and provider['auth_script']:
-            print('authenticating with: %s' % provider['name'])
+            self.logger.log('authenticating with: %s' % provider['name'])
             auth_script_paths = [
                 { 'file_path': '%s/auth/%s.sh' % (self.config['config_path'], provider['name']) },
                 { 'file_path': '%s/builtin/auth/%s.sh' % (self.config['module_path'], provider['name']) },
@@ -491,29 +534,28 @@ class Servicer():
                 },
             ]
             module = self.load_module_from_paths(auth_modules)
-            auth = module.AuthAdapter(provider['config'])
+            auth = module.AuthAdapter(provider['config'], logger=self.logger)
 
             if force_authenticate or not auth.current_user():
                 auth.authenticate()
 
-            print('Current User: %s' % auth.current_user())
+            self.logger.log('Current User: %s' % auth.current_user())
 
     def load_module_from_paths(self, modules):
         for mp in modules:
-            if os.getenv('DEBUG'):
-                print('searching for module at: %s' % mp['file_path'])
+            self.logger.log('searching for module at: %s' % mp['file_path'], level='debug')
+
             if os.path.exists(mp['file_path']):
                 if 'name' in mp:
-                    if os.getenv('DEBUG'):
-                        print('importing: %s:%s' % (mp['name'], mp['package']))
+                    self.logger.log('importing: %s:%s' % (mp['name'], mp['package']), level='debug')
 
                     module = importlib.import_module(mp['name'])
                     return module
                 else:
-                    print('found matching executable: %s' % mp['file_path'])
+                    self.logger.log('found matching executable: %s' % mp['file_path'])
                     return mp['file_path']
 
-        print('no module found!')
+        self.logger.log('no module found!')
         sys.exit(1)
 
     def load_steps(self):
@@ -531,8 +573,8 @@ class Servicer():
 
     def run_service_steps(self):
         self.print_title('running service steps')
-        print(json.dumps(self.service_step_order, indent=4))
-        print()
+        self.logger.log(json.dumps(self.service_step_order, indent=4))
+        self.logger.log()
 
         service_steps = [item for sublist in self.service_step_order for item in sublist]
 
@@ -547,28 +589,27 @@ class Servicer():
             service = self.config['services'][service_name]
             service_step = service['steps'][step_name]
 
-            if os.getenv('DEBUG'):
-                print('step:')
-                print(json.dumps(step, indent=4, sort_keys=True, default=str))
-                print()
-                print('service:')
-                print(json.dumps(service, indent=4, sort_keys=True, default=str))
-                print()
+            self.logger.log('step:', level='debug')
+            self.logger.log(json.dumps(step, indent=4, sort_keys=True, default=str), level='debug')
+            self.logger.log(level='debug')
+            self.logger.log('service:', level='debug')
+            self.logger.log(json.dumps(service, indent=4, sort_keys=True, default=str), level='debug')
+            self.logger.log(level='debug')
 
             if 'config' in step and 'requires_service_environment' in step['config']:
                 if step['config']['requires_service_environment'] and self.service_environment == None:
-                    print('skipping, no valid service environment found for step: %s' % step_name)
+                    self.logger.log('skipping, no valid service environment found for step: %s' % step_name)
                     continue
 
             self.run_service_step(service, service_step)
 
             # TODO: rethink and standardize this termination process
             if 'TERMINATE_BUILD' in os.environ:
-                print('build termination requested, stopping with code: %s' % os.environ['TERMINATE_BUILD'])
+                self.logger.log('build termination requested, stopping with code: %s' % os.environ['TERMINATE_BUILD'])
                 sys.exit(int(os.environ['TERMINATE_BUILD']))
 
         self.tag_build()
-        print('\nBuild Complete.')
+        self.logger.log('\nBuild Complete.')
 
     def run_service_step(self, service, service_step):
         if 'module' not in service:
@@ -590,14 +631,14 @@ class Servicer():
                     config['git'] = {}
                 config['git']['module'] = self.git
 
-            adapter = service['module'].Service(config)
+            adapter = service['module'].Service(config, logger=self.logger)
             adapter.full_config = self.config
             results = adapter.up()
 
             if results:
                 service_step['results'] = results
-                print('results: ')
-                print(json.dumps(results, indent=4, sort_keys=True, default=str))
+                self.logger.log('results: ')
+                self.logger.log(json.dumps(results, indent=4, sort_keys=True, default=str))
 
         post_commands = service_step.get('post_commands')
         if post_commands:
@@ -611,11 +652,11 @@ class Servicer():
         while len(border_text) < len(inner_text):
             border_text = '%s %s' % (border_text, border)
 
-        print()
-        print(border_text)
-        print(inner_text)
-        print(border_text)
-        print()
+        self.logger.log()
+        self.logger.log(border_text)
+        self.logger.log(inner_text)
+        self.logger.log(border_text)
+        self.logger.log()
 
 def main():
     Servicer().run_service_steps()

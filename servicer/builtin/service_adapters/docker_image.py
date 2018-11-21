@@ -1,9 +1,9 @@
 import os
-from .service import Service as BaseService
+from .task_service import Service as BaseService
 
 class Service(BaseService):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, logger=None):
+        super().__init__(config, logger=logger)
         self.registry = None
 
     def up(self):
@@ -50,8 +50,10 @@ class Service(BaseService):
             full_path = self.full_image_path(self.config['registry_path'], tag)
             self.run('docker tag %s %s' % (image, full_path))
 
-    def full_image_path(self, registry_path, tag):
-        full_path = '%s:%s' % (registry_path, tag)
+    def full_image_path(self, registry_path, tag=''):
+        full_path = registry_path
+        if tag:
+            full_path = '%s:%s' % (full_path, tag)
         if self.registry:
             full_path = '%s/%s' % (self.registry, full_path)
         return '"%s"' % full_path

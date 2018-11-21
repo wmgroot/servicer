@@ -1,8 +1,8 @@
 from ..service import Service as BaseService
 
 class AWSService(BaseService):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, logger=None):
+        super().__init__(config, logger=logger)
         self.name = 'an-aws-service'
 
         import boto3

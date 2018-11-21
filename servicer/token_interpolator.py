@@ -1,6 +1,9 @@
 import re
 
 class TokenInterpolator():
+    def __init__(self, logger=None):
+        self.logger = logger
+
     def interpolate_tokens(self, config, params, ignore_missing_key=False):
         if isinstance(config, dict):
             for key, value in config.items():

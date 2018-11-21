@@ -6,8 +6,8 @@ from ..service import Service as BaseService
 from servicer.git import Git
 
 class Service(BaseService):
-    def __init__(self, config=None):
-        super().__init__(config=config)
+    def __init__(self, config=None, logger=None):
+        super().__init__(config=config, logger=logger)
 
         if 'git' in config:
             self.git = config['git']['module']
@@ -33,7 +33,7 @@ class Service(BaseService):
             getattr(self, step['type'])(**step.get('args', {}))
 
     def set_auto_version(self, max_increment=10, auto_detect_version=True):
-        print('auto-versioning (auto_detect_version=%s)...' % auto_detect_version)
+        self.logger.log('auto-versioning (auto_detect_version=%s)...' % auto_detect_version)
 
         self.read_package_info(self.config['package_info'])
         if not isinstance(self.package_info, list):
@@ -66,7 +66,7 @@ class Service(BaseService):
                 pi['version'] = self.increment_version(pi['version'])
             version_changed = True
 
-        print('Automatic version decided: %s' % ['%s:%s' % (pi['name'], pi['version']) for pi in self.package_info])
+        self.logger.log('Automatic version decided: %s' % ['%s:%s' % (pi['name'], pi['version']) for pi in self.package_info])
 
         if version_changed:
             if 'changed_files' not in self.results:
@@ -84,11 +84,11 @@ class Service(BaseService):
 
     def commit_and_push_changes(self, git_no_verify=False, terminate_on_change=False):
         if 'BRANCH' not in os.environ:
-            print('No BRANCH defined, skipping commit and push.')
+            self.logger.log('No BRANCH defined, skipping commit and push.')
             return
 
         if self.git.protocol == 'https' and 'GIT_USERNAME' not in os.environ:
-            print('No GIT_USERNAME defined, skipping commit and push.')
+            self.logger.log('No GIT_USERNAME defined, skipping commit and push.')
             return
 
         commit_args = {
@@ -106,7 +106,7 @@ class Service(BaseService):
                 # requests termination of the build after the current step completes
                 os.environ['TERMINATE_BUILD'] = '0'
         else:
-            print('no changes to commit')
+            self.logger.log('no changes to commit')
 
     def increment_version(self, version):
         new_version = [int(v) for v in version.split('.')]
@@ -114,7 +114,7 @@ class Service(BaseService):
         return '.'.join([str(v) for v in new_version])
 
     def if_package_version_exists(self, **package_info):
-        print('checking for %s-%s...' % (package_info['name'], package_info['version']))
+        self.logger.log('checking for %s-%s...' % (package_info['name'], package_info['version']))
 
         version_list = None
         if 'version_source' in self.config and self.config['version_source'] == 'gcr':
@@ -122,7 +122,7 @@ class Service(BaseService):
         else:
             version_list = self.get_existing_versions(**package_info)
 
-        print('existing versions: %s' % version_list)
+        self.logger.log('existing versions: %s' % version_list)
 
         package_info['version_exists'] = package_info['version'] in version_list
         if package_info['version_exists'] and 'action' in package_info:

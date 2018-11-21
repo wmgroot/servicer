@@ -20,10 +20,10 @@ class Service(AWSService):
 
         try:
             self.rds.create_db_instance(**params)
-            print('creating RDS instance with ID: %s' % params['DBInstanceIdentifier'])
+            self.logger.log('creating RDS instance with ID: %s' % params['DBInstanceIdentifier'])
         except ClientError as e:
             if 'DBInstanceAlreadyExists' in str(e):
-                print('DB instance (%s) exists already, continuing to poll ...' % id)
+                self.logger.log('DB instance (%s) exists already, continuing to poll ...' % id)
             else:
                 raise
 
@@ -33,14 +33,14 @@ class Service(AWSService):
             time.sleep(sleep_time)
             instance = self.get_instance(id)
             attempts -= 1
-            print('status: %s, remaining attempts: %s' % (instance['DBInstanceStatus'], attempts))
+            self.logger.log('status: %s, remaining attempts: %s' % (instance['DBInstanceStatus'], attempts))
 
-        print('DB instance (%s) ready at: %s' % (id, instance['Endpoint']['Address']))
+        self.logger.log('DB instance (%s) ready at: %s' % (id, instance['Endpoint']['Address']))
         return instance['Endpoint']['Address']
 
     def get_instance(self, id):
         response = self.rds.describe_db_instances(DBInstanceIdentifier=id)
         return response['DBInstances'][0]
 
-    def down():
-        print('TODO!')
+    # def down():
+    #     print('TODO!')

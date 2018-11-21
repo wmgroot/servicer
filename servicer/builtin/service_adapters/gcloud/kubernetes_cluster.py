@@ -34,15 +34,15 @@ class Service(GCloudService):
             self.wait_for_pending_services(**args)
 
     def ensure_cluster(self, cluster_name=None):
-        print('ensuring cluster: %s' % cluster_name)
+        self.logger.log('ensuring cluster: %s' % cluster_name)
         self.run('gcloud container clusters create %s || true' % cluster_name)
         self.run('gcloud container clusters get-credentials %s' % cluster_name)
-        print('cluster ready: %s' % cluster_name)
+        self.logger.log('cluster ready: %s' % cluster_name)
 
     def apply(self, config):
         try:
-            print('applying kube config:')
-            print(json.dumps(config, indent=2, sort_keys=True, default=str))
+            self.logger.log('applying kube config:')
+            self.logger.log(json.dumps(config, indent=2, sort_keys=True, default=str))
 
             with open('file.yaml', 'w') as outfile:
                 yaml.dump(config, outfile, default_flow_style=False)
@@ -60,12 +60,12 @@ class Service(GCloudService):
         while True:
             result = self.run('kubectl get service')
             if '<pending>' in result['stdout']:
-                print('(%ss) found pending actions for cluster %s, waiting...' % (current_wait, self.cluster_name))
+                self.logger.log('(%ss) found pending actions for cluster %s, waiting...' % (current_wait, self.cluster_name))
                 time.sleep(wait_increment)
                 current_wait += wait_increment
             else:
                 break
 
             if current_wait > max_wait:
-                print('timed out while waiting for pending actions, terminating')
+                self.logger.log('timed out while waiting for pending actions, terminating')
                 sys.exit(1)

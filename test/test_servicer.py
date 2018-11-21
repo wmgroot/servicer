@@ -49,7 +49,6 @@ class LoadEnvironmentTest(ServicerTest):
     def test_multiple_env_file_paths(self):
         self.args['env_file_paths'] = 'path/one:path/two'
         result = self.servicer.load_environment(self.args)
-        print(self.servicer.load_env_file.mock.calls)
         self.servicer.load_env_file.assert_has_calls([
             mock.call('path/one'),
             mock.call('path/two'),

@@ -4,8 +4,8 @@ import os
 from servicer.run import run
 
 class AuthAdapter(BaseAuthAdapter):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, logger=None):
+        super().__init__(config, logger=logger)
         self.run = run
 
     def authenticate(self):

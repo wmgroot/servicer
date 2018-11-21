@@ -2,8 +2,8 @@ from .base_ci_adapter import BaseCIAdapter
 
 class CIAdapter(BaseCIAdapter):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, logger=None):
+        super().__init__(logger=logger)
 
         # https://confluence.atlassian.com/bitbucket/environment-variables-794502608.html
         self.env_map['BITBUCKET_BUILD_NUMBER'] = 'BUILD_NUMBER'

@@ -4,8 +4,8 @@ import os
 from servicer.run import run
 
 class AuthAdapter(BaseAuthAdapter):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, logger=None):
+        super().__init__(config, logger=logger)
         self.run = run
 
     def authenticate(self):
@@ -33,9 +33,9 @@ class AuthAdapter(BaseAuthAdapter):
 
     def ensure_key_file(self, key_file_path):
         if os.path.isfile(key_file_path):
-            print('found existing gcloud key-file: %s' % key_file_path)
+            self.logger.log('found existing gcloud key-file: %s' % key_file_path)
         else:
-            print('generating gcloud key-file: %s' % key_file_path)
+            self.logger.log('generating gcloud key-file: %s' % key_file_path)
             key_file_json = self.config.get('key_file_json', os.environ['GCLOUD_KEY_FILE_JSON'])
 
             with open(key_file_path, 'w') as out:
