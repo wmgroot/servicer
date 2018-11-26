@@ -38,6 +38,8 @@ git:
   diff-defaults-to-latest-tag: true
   # use automated servicer git tagging to power change detection, useful for monorepos
   diff-tagging-enabled: true
+  # fetch tags and branches at the start of the build, some CI providers do this for you
+  fetch-all: true
   # fetch existing tags at the start of the build, some CI providers do this for you
   fetch-tags: true
   # enable to skip running steps for services with no changes

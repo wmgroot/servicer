@@ -225,7 +225,9 @@ class Servicer():
                 if result == '':
                     self.run('git config %s "%s"' % (key, value))
 
-        if 'fetch-tags' in self.config['git'] and self.config['git']['fetch-tags']:
+        if 'fetch-all' in self.config['git'] and self.config['git']['fetch-all']:
+            self.run('git fetch')
+        elif 'fetch-tags' in self.config['git'] and self.config['git']['fetch-tags']:
             self.run('git fetch --tags')
 
         if 'tag' in self.config['args'] and self.config['args']['tag']:
@@ -287,22 +289,16 @@ class Servicer():
             if 'no_tag' in self.config['args'] and self.config['args']['no_tag']:
                 return
 
-        # servicer_tag = self.servicer_git_tag()
-        servicer_tag = 'foo'
+        servicer_tag = self.servicer_git_tag()
+
         if servicer_tag:
             self.logger.log('Tagging: %s' % servicer_tag)
-            # self.git.tag(servicer_tag, push=True)
+            self.git.tag(servicer_tag, push=True)
 
-            # self.logger.log('Removing old tags...')
-            # if servicer_tag in self.build_tags:
-            #     self.build_tags.remove(servicer_tag)
-            # self.remove_stale_tags(self.build_tags)
             self.remove_stale_tags()
 
     def remove_stale_tags(self):
         self.logger.log('Removing old tags...')
-
-        self.run('git fetch')
 
         build_tags = [t for t in self.git.list_tags() if t.startswith('servicer-')]
         branches = ['/'.join(b.split('/')[1:]) for b in self.git.list_remote_branches()]
