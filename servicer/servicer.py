@@ -18,7 +18,10 @@ from .logger import Logger
 
 class Servicer():
     def __init__(self, args=None, init=True):
-        self.logger = Logger()
+        logger_params = {}
+        if os.getenv('DEBUG'):
+            logger_params['level'] = 'debug'
+        self.logger = Logger(**logger_params)
 
         if not init:
             return
@@ -289,21 +292,23 @@ class Servicer():
             if 'no_tag' in self.config['args'] and self.config['args']['no_tag']:
                 return
 
+        self.remove_stale_tags()
         servicer_tag = self.servicer_git_tag()
 
         if servicer_tag:
             self.logger.log('Tagging: %s' % servicer_tag)
             self.git.tag(servicer_tag, push=True)
 
-            self.remove_stale_tags()
-
     def remove_stale_tags(self):
         self.logger.log('Removing old tags...')
 
         build_tags = [t for t in self.git.list_tags() if t.startswith('servicer-')]
+        self.logger.log('\nexisting servicer tags:', level='debug')
+        self.logger.log('\n'.join(build_tags), level='debug')
+
         branches = ['/'.join(b.split('/')[1:]) for b in self.git.list_remote_branches()]
         tag_prefixes = [self.git.sanitize_tag(b) for b in branches]
-        self.logger.log('\ntag prefixes:', level='debug')
+        self.logger.log('\nexisting branch tag prefixes:', level='debug')
         self.logger.log('\n'.join(tag_prefixes), level='debug')
 
         valid_tags = set()
@@ -314,10 +319,17 @@ class Servicer():
                     valid_tags.add(bt)
 
         tags_to_delete = list(set(build_tags) - valid_tags)
-        self.logger.log('\ntags to delete:', level='debug')
+        self.logger.log('\nstale tags for other branches:', level='debug')
         self.logger.log('\n'.join(tags_to_delete), level='debug')
 
         self.git.delete_tag(tags_to_delete)
+
+        tag_prefix = self.git.sanitize_tag(os.environ['BRANCH'])
+        build_tags_for_branch = [bt for bt in build_tags if bt.startswith('servicer-%s' % tag_prefix)]
+
+        self.logger.log('\nstale tags for this branch: %s' % tag_prefix, level='debug')
+        self.logger.log('\n'.join(build_tags_for_branch), level='debug')
+        self.git.delete_tag(build_tags_for_branch)
 
     def servicer_git_tag(self):
         if 'BRANCH' not in os.environ:
