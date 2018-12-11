@@ -57,7 +57,16 @@ services:
         docker_context_path: .
         image: alpine
 
-  image-alpine-gcloud-sbt-node:
+  image-alpine-gcloud-node-terraform:
+    includes:
+      path: docker_image.yaml
+      params:
+        registry: wmgroot/${PROJECT_NAME}-alpine-gcloud-node-terraform
+        dockerfile: docker/Dockerfile-alpine-gcloud-node-terraform
+        docker_context_path: .
+        image: alpine-gcloud-node-terraform
+
+  image-alpine-gcloud-sbt-node-terraform:
     includes:
       path: docker_image.yaml
       params:
