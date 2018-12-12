@@ -1,4 +1,9 @@
-FROM wmgroot:servicer-alpine
+FROM wmgroot/servicer-alpine
+
+# https://github.com/sgerrand/alpine-pkg-glibc/issues/1
+RUN apk --no-cache --allow-untrusted -X https://apkproxy.herokuapp.com/sgerrand/alpine-pkg-glibc add glibc glibc-bin
+RUN apk --no-cache add openjdk8
+ENV PATH $PATH:/usr/lib/jvm/java-1.8-openjdk/bin
 
 RUN apk --no-cache add nodejs nodejs-npm yarn
 RUN npm install -g typescript

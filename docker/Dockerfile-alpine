@@ -3,5 +3,5 @@ FROM python:3.6-alpine
 RUN apk update && apk upgrade && \
     apk add --no-cache bash docker git openssh
 
-ADD . /code/
-RUN pip install -e /code
+ADD . /servicer/
+RUN pip install -e /servicer

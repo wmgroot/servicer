@@ -55,22 +55,32 @@ services:
         registry: wmgroot/${PROJECT_NAME}-alpine
         dockerfile: docker/Dockerfile-alpine
         docker_context_path: .
-        image: alpine
+        image: wmgroot/${PROJECT_NAME}-alpine
 
-  image-alpine-gcloud-node-terraform:
+  image-alpine-gcloud-java-node-terraform:
+    steps:
+      build:
+        depends_on:
+          - image-alpine:build
+
     includes:
       path: docker_image.yaml
       params:
-        registry: wmgroot/${PROJECT_NAME}-alpine-gcloud-node-terraform
-        dockerfile: docker/Dockerfile-alpine-gcloud-node-terraform
+        registry: wmgroot/${PROJECT_NAME}-alpine-gcloud-java-node-terraform
+        dockerfile: docker/Dockerfile-alpine-gcloud-java-node-terraform
         docker_context_path: .
-        image: alpine-gcloud-node-terraform
+        image: wmgroot/${PROJECT_NAME}-alpine-gcloud-java-node-terraform
 
-  image-alpine-gcloud-sbt-node-terraform:
+  image-alpine-gcloud-node-sbt-terraform:
+    steps:
+      build:
+        depends_on:
+          - image-alpine-gcloud-java-node-terraform:build
+
     includes:
       path: docker_image.yaml
       params:
         registry: wmgroot/${PROJECT_NAME}-alpine-gcloud-node-sbt-terraform
         dockerfile: docker/Dockerfile-alpine-gcloud-node-sbt-terraform
         docker_context_path: .
-        image: alpine-gcloud-node-sbt-terraform
+        image: wmgroot/${PROJECT_NAME}-alpine-gcloud-node-sbt-terraform

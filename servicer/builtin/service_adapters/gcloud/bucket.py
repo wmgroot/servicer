@@ -1,39 +1,43 @@
-from .gcloud_service import GCloudService
+# from .gcloud_service import GCloudService
+from ..task_service import Service as BaseService
 import os
 import requests
 from google.cloud import storage
 
-class Service(GCloudService):
+class Service(BaseService):
     def up(self):
-        super().up()
-
         self.project = self.config.get('project', os.environ['GCLOUD_PROJECT'])
         self.gs = storage.Client(project=self.project)
 
-        self.bucket = self.config['bucket']
+        self.bucket_name = self.config['bucket']
+        self.bucket = storage.Bucket(self.gs, name=self.bucket_name)
         self.ensure_bucket()
 
-        if 'steps' in self.config:
-            self.run_steps(self.config['steps'])
+        super().up()
 
     def down(self):
         super().down()
 
     def ensure_bucket(self):
-        bucket_args = {
-            'Bucket': self.config['bucket'],
-        }
-
-        self.logger.log('ensuring bucket exists: %s' % self.bucket)
-        bucket = storage.Bucket(self.gs, name=self.bucket)
+        self.logger.log('ensuring bucket exists: %s' % self.bucket_name)
 
         region = self.config.get('region', os.getenv('GCLOUD_REGION'))
         if region:
-            bucket.location = region
+            self.bucket.location = region
 
-        if not bucket.exists():
-            bucket.create()
+        if not self.bucket.exists():
+            self.bucket.create()
 
-    def run_steps(self, steps):
-        for step in steps:
-            getattr(self, step['type'])(**step['args'])
+    def blob(self, blob_arg, operation, operation_arg=None):
+        op_args = []
+        if operation_arg:
+            arg = open(operation_arg, 'wb') if operation == 'download_to_file' else operation_arg
+            op_args.append(arg)
+
+        self.logger.log('executing blob operation: (%s).%s(%s)' % (blob_arg, operation, operation_arg))
+
+        blob = self.bucket.blob(blob_arg)
+        getattr(blob, operation)(*op_args)
+
+        if operation_arg and operation == 'download_to_file':
+            op_args[0].close()
