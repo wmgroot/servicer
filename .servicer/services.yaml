@@ -57,11 +57,25 @@ services:
         docker_context_path: .
         image: wmgroot/${PROJECT_NAME}-alpine
 
-  image-alpine-gcloud-java-node-terraform:
+  image-alpine-gcloud-terraform:
     steps:
       build:
         depends_on:
           - image-alpine:build
+
+    includes:
+      path: docker_image.yaml
+      params:
+        registry: wmgroot/${PROJECT_NAME}-alpine-gcloud-terraform
+        dockerfile: docker/Dockerfile-alpine-gcloud-terraform
+        docker_context_path: .
+        image: wmgroot/${PROJECT_NAME}-alpine-gcloud-terraform
+
+  image-alpine-gcloud-java-node-terraform:
+    steps:
+      build:
+        depends_on:
+          - image-alpine-gcloud-terraform:build
 
     includes:
       path: docker_image.yaml

@@ -1,3 +1,4 @@
 FROM wmgroot/servicer-alpine-gcloud-java-node-terraform
 
+# sbt
 RUN apk --no-cache add --repository http://dl-cdn.alpinelinux.org/alpine/edge/testing sbt

@@ -1,23 +1,12 @@
-FROM wmgroot/servicer-alpine
+FROM wmgroot/servicer-alpine-gcloud-terraform
 
+# java 8
 # https://github.com/sgerrand/alpine-pkg-glibc/issues/1
 RUN apk --no-cache --allow-untrusted -X https://apkproxy.herokuapp.com/sgerrand/alpine-pkg-glibc add glibc glibc-bin
 RUN apk --no-cache add openjdk8
 ENV PATH $PATH:/usr/lib/jvm/java-1.8-openjdk/bin
 
+# node + yarn
 RUN apk --no-cache add nodejs nodejs-npm yarn
 RUN npm install -g typescript
 ENV NODE_PATH $NODE_PATH:/usr/lib/node_modules
-
-# install gcloud sdk on alpine
-RUN wget https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.zip
-RUN unzip google-cloud-sdk.zip && rm google-cloud-sdk.zip
-RUN google-cloud-sdk/install.sh --additional-components kubectl
-ENV PATH $PATH:/google-cloud-sdk/bin
-
-RUN gcloud --version
-RUN gcloud auth configure-docker -q
-
-RUN wget https://releases.hashicorp.com/terraform/0.11.10/terraform_0.11.10_linux_amd64.zip
-RUN unzip terraform_0.11.10_linux_amd64.zip && rm terraform_0.11.10_linux_amd64.zip
-RUN mv terraform /usr/local/bin/
