@@ -57,10 +57,13 @@ class DependencyGrapher():
         # default step based dependencies
         if self.config['graph']['implicit-step-dependencies']:
             step_index = self.step_order.index(step_name)
-            if step_index > 0:
-                dep_step_name = self.step_order[step_index - 1]
+            while step_index > 0:
+                step_index -= 1
+                dep_step_name = self.step_order[step_index]
+
                 if dep_step_name in service['steps']:
-                    depends_on.append('%s:%s' % (service_name, self.step_order[step_index - 1]))
+                    depends_on.append('%s:%s' % (service_name, dep_step_name))
+                    break
 
         # append implied step dependencies
         depends_on = self.fill_implied_step_dependencies(depends_on, step_name)

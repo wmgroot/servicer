@@ -2,7 +2,7 @@ FROM wmgroot/servicer-alpine
 
 # gcloud sdk with kubectl
 RUN wget https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.zip
-RUN unzip google-cloud-sdk.zip && rm google-cloud-sdk.zip
+RUN unzip -q google-cloud-sdk.zip && rm google-cloud-sdk.zip
 RUN google-cloud-sdk/install.sh --additional-components kubectl
 ENV PATH $PATH:/google-cloud-sdk/bin
 
