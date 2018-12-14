@@ -46,7 +46,7 @@ By default, all service-step dependencies will also be executed. If you will lik
 Within this *Configuration* section of the README, consider each of these subsections to compose the `services.yaml` on one project.
 
 ### Environment ###
-The `environment` section of `services.yaml` will let you define environment variables that you're ok with existing in source control. Additionally, you can control the branch -> service_environment settings, allowing you to change the defaults. `services.yaml` supports environment variable substitution using the `${MY_VAR}` format. Consider the example below.
+The `environment` section of `services.yaml` will let you define environment variables that you're ok with existing in source control. Additionally, you can control the branch -> service_environment settings, allowing you to change the defaults. Consider the example below.
 
 ```
 environment:
@@ -296,6 +296,11 @@ services:
         db: postres
         provider: gcloud
 ```
+
+### Variable Interpolation ###
+All configuration files support variable interpolation using the `${MY_VAR}` format.
+To pull from an environment variable, use `${MY_ENV_VAR}`.
+To fall back to a default value if the chosen environment variable does not exist, use `${MY_ENV_VAR:"my-default-value"}`
 
 ## Testing the Job ##
 To make it easy to test deployments in your local environment, servicer will automatically read from an `.env.yaml` file in your servicer configuration directory, if it exists. It is recommended to add this file to your `.gitignore`, as it is only intended to be used for local development and manual environment creation.
