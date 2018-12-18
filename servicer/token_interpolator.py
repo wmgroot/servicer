@@ -30,7 +30,7 @@ class TokenInterpolator():
                 for ev in escaped_values:
                     if ev in token:
                         token = token.replace(ev, '\%s' % ev)
-                self.logger.log('replacing token %s -> %s' % (token, replace_value), level='debug')
+                # self.logger.log('replacing token %s -> %s' % (token, replace_value), level='debug')
                 value = re.sub(r'\${%s}' % token, replace_value, value)
 
         return value
