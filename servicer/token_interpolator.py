@@ -4,37 +4,38 @@ class TokenInterpolator():
     def __init__(self, logger=None):
         self.logger = logger
 
-    def interpolate_tokens(self, config, params, ignore_missing_key=False):
+    def interpolate_tokens(self, config, params, ignore_missing_key=False, ignore_default=False):
         if isinstance(config, dict):
             for key, value in config.items():
                 if isinstance(value, str):
-                    config[key] = self.replace_tokens(value, params, ignore_missing_key)
+                    config[key] = self.replace_tokens(value, params, ignore_missing_key, ignore_default)
                 else:
-                    self.interpolate_tokens(value, params, ignore_missing_key)
+                    self.interpolate_tokens(value, params, ignore_missing_key, ignore_default)
         elif isinstance(config, list):
             for i in range(len(config)):
                 if isinstance(config[i], str):
-                    config[i] = self.replace_tokens(config[i], params, ignore_missing_key)
+                    config[i] = self.replace_tokens(config[i], params, ignore_missing_key, ignore_default)
                 else:
-                    self.interpolate_tokens(config[i], params, ignore_missing_key)
+                    self.interpolate_tokens(config[i], params, ignore_missing_key, ignore_default)
 
-    def replace_tokens(self, value, params, ignore_missing_key=False):
+    def replace_tokens(self, value, params, ignore_missing_key=False, ignore_default=False):
         escaped_values = list('.^$*+?()[]{}|')
 
         for match in re.findall(r'\${.+?}+', value):
             token = match[2:-1]
 
-            replace_value = self.evaluate_token(match, params)
+            replace_value = self.evaluate_token(match, params, ignore_default)
 
             if replace_value:
                 for ev in escaped_values:
                     if ev in token:
                         token = token.replace(ev, '\%s' % ev)
+                self.logger.log('replacing token %s -> %s' % (token, replace_value), level='debug')
                 value = re.sub(r'\${%s}' % token, replace_value, value)
 
         return value
 
-    def evaluate_token(self, value, params):
+    def evaluate_token(self, value, params, ignore_default=False):
         if not (value.startswith('${') and value.endswith('}')):
             return value
 
@@ -42,6 +43,9 @@ class TokenInterpolator():
         if len(pieces) > 2:
             pieces[1] = ':'.join(pieces[1:])
             pieces = pieces[:2]
+
+        if ignore_default:
+            pieces = pieces[0:1]
 
         for p in pieces:
             evaluated = self.evaluate_value(p, params)
@@ -51,7 +55,7 @@ class TokenInterpolator():
         return None
 
     def evaluate_value(self, value, params):
-        if value.startswith('"') and value.endswith('"'):
+        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
             return value[1:-1]
 
         result = None

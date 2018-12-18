@@ -7,7 +7,7 @@ from .token_interpolator import TokenInterpolator
 class ConfigLoader():
     def __init__(self, args={}, logger=None):
         self.args = args
-        self.token_interpolator = TokenInterpolator()
+        self.token_interpolator = TokenInterpolator(logger=logger)
         self.logger = logger
         self.module_path = os.path.dirname(os.path.realpath(globals()['__file__']))
         self.servicer_config_path = args.get('servicer_config_path')
@@ -83,7 +83,7 @@ class ConfigLoader():
             self.merge_included_configs(config_path=self.servicer_config_file_path, config=include_config)
 
             if params:
-                self.token_interpolator.interpolate_tokens(include_config, params, ignore_missing_key=True)
+                self.token_interpolator.interpolate_tokens(include_config, params, ignore_missing_key=True, ignore_default=True)
 
             self.merge_config(config, include_config)
 

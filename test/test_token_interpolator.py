@@ -5,6 +5,7 @@ from servicer.token_interpolator import TokenInterpolator
 class TokenInterpolatorTest(TestCase):
     def setUp(self):
         self.token_interpolator = TokenInterpolator()
+        self.token_interpolator.logger = mock.Mock()
 
 class TokenInterpolatorClassTest(TokenInterpolatorTest):
     def test_initialized(self):
@@ -52,7 +53,7 @@ class InterpolateTokensTest(TokenInterpolatorTest):
 
         self.assertEqual(self.token_interpolator.interpolate_tokens.mock_calls, [
             mock.call(config, {}),
-            mock.call(123, {}, False),
+            mock.call(123, {}, False, False),
         ])
         self.token_interpolator.replace_tokens.assert_not_called()
 
@@ -66,7 +67,7 @@ class InterpolateTokensTest(TokenInterpolatorTest):
             mock.call(config, {}),
         ])
         self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('bar', {}, False),
+            mock.call('bar', {}, False, False),
         ])
 
     def test_replacing_string_lists(self):
@@ -77,8 +78,8 @@ class InterpolateTokensTest(TokenInterpolatorTest):
             mock.call(config, {}),
         ])
         self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('foo', {}, False),
-            mock.call('bar', {}, False),
+            mock.call('foo', {}, False, False),
+            mock.call('bar', {}, False, False),
         ])
 
     def test_replacing_complex_nested_strings(self):
@@ -97,20 +98,20 @@ class InterpolateTokensTest(TokenInterpolatorTest):
 
         self.assertEqual(self.token_interpolator.interpolate_tokens.mock_calls, [
             mock.call(config, {}),
-            mock.call(config['colors'], {}, False),
-            mock.call(config['fish'], {}, False),
-            mock.call(config['fish']['tuna'], {}, False),
-            mock.call(config['fish']['tuna']['flavors'], {}, False),
+            mock.call(config['colors'], {}, False, False),
+            mock.call(config['fish'], {}, False, False),
+            mock.call(config['fish']['tuna'], {}, False, False),
+            mock.call(config['fish']['tuna']['flavors'], {}, False, False),
         ])
         self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('red', {}, False),
-            mock.call('blue', {}, False),
-            mock.call('ok', {}, False),
-            mock.call('nice', {}, False),
-            mock.call('fishy', {}, False),
-            mock.call('fresh', {}, False),
-            mock.call('salty', {}, False),
-            mock.call('various', {}, False),
+            mock.call('red', {}, False, False),
+            mock.call('blue', {}, False, False),
+            mock.call('ok', {}, False, False),
+            mock.call('nice', {}, False, False),
+            mock.call('fishy', {}, False, False),
+            mock.call('fresh', {}, False, False),
+            mock.call('salty', {}, False, False),
+            mock.call('various', {}, False, False),
         ])
 
     def test_passing_params(self):
@@ -121,11 +122,11 @@ class InterpolateTokensTest(TokenInterpolatorTest):
 
         self.assertEqual(self.token_interpolator.interpolate_tokens.mock_calls, [
             mock.call(config, {'foo': 'bar'}),
-            mock.call(config['colors'], {'foo': 'bar'}, False),
+            mock.call(config['colors'], {'foo': 'bar'}, False, False),
         ])
         self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('red', {'foo': 'bar'}, False),
-            mock.call('blue', {'foo': 'bar'}, False),
+            mock.call('red', {'foo': 'bar'}, False, False),
+            mock.call('blue', {'foo': 'bar'}, False, False),
         ])
 
     def test_passing_ignore_missing_key(self):
@@ -136,11 +137,11 @@ class InterpolateTokensTest(TokenInterpolatorTest):
 
         self.assertEqual(self.token_interpolator.interpolate_tokens.mock_calls, [
             mock.call(config, {}, ignore_missing_key=True),
-            mock.call(config['colors'], {}, True),
+            mock.call(config['colors'], {}, True, False),
         ])
         self.assertEqual(self.token_interpolator.replace_tokens.mock_calls, [
-            mock.call('red', {}, True),
-            mock.call('blue', {}, True),
+            mock.call('red', {}, True, False),
+            mock.call('blue', {}, True, False),
         ])
 
 class ReplaceTokensTest(TokenInterpolatorTest):
@@ -167,7 +168,7 @@ class ReplaceTokensTest(TokenInterpolatorTest):
         result = self.token_interpolator.replace_tokens('${ONE}', {})
 
         self.assertEqual(self.token_interpolator.evaluate_token.mock_calls, [
-            mock.call('${ONE}', {}),
+            mock.call('${ONE}', {}, False),
         ])
         self.assertEqual(result, 'red')
 
@@ -180,8 +181,8 @@ class ReplaceTokensTest(TokenInterpolatorTest):
         result = self.token_interpolator.replace_tokens('${ONE}+${TWO}', {})
 
         self.assertEqual(self.token_interpolator.evaluate_token.mock_calls, [
-            mock.call('${ONE}', {}),
-            mock.call('${TWO}', {}),
+            mock.call('${ONE}', {}, False),
+            mock.call('${TWO}', {}, False),
         ])
         self.assertEqual(result, 'red+blue')
 
@@ -193,7 +194,7 @@ class ReplaceTokensTest(TokenInterpolatorTest):
         result = self.token_interpolator.replace_tokens('${ONE:${TWO}}', {})
 
         self.assertEqual(self.token_interpolator.evaluate_token.mock_calls, [
-            mock.call('${ONE:${TWO}}', {}),
+            mock.call('${ONE:${TWO}}', {}, False),
         ])
         self.assertEqual(result, 'red')
 
@@ -239,6 +240,19 @@ class EvaluateTokenTest(TokenInterpolatorTest):
             mock.call('TWO', {}),
         ])
         self.assertEqual(result, 'blue')
+
+    def test_explicit_ignores_default_parameter(self):
+        self.token_interpolator.evaluate_value = mock.Mock(side_effect=[
+            None,
+            'bear',
+        ])
+
+        result = self.token_interpolator.evaluate_token('${TWO:family.genus.species}', {}, ignore_default=True)
+
+        self.assertEqual(self.token_interpolator.evaluate_value.mock_calls, [
+            mock.call('TWO', {}),
+        ])
+        self.assertEqual(result, None)
 
     def test_finds_single_evaluated_value(self):
         self.token_interpolator.evaluate_value = mock.Mock(side_effect=[
