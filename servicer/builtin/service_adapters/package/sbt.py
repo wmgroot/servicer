@@ -102,7 +102,7 @@ class Service(BasePackageService):
 
         versions = []
         if response.status_code == 404:
-            self.logger.log('WARNING: repository path not found: %s' % url, level='warning')
+            self.logger.log('WARNING: repository path not found: %s' % url, level='warn')
         else:
             response.raise_for_status()
 
