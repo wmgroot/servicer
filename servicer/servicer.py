@@ -626,10 +626,7 @@ class Servicer():
         # allow interpolation of result values from prior service-steps
         self.token_interpolator.interpolate_tokens(service_step, self.config)
 
-        commands = service_step.get('commands')
-        if commands:
-            for c in commands:
-                self.run(c)
+        self.run_commands(service_step.get('commands'))
 
         if 'config' in service_step:
             config = service_step.get('config')
@@ -648,9 +645,18 @@ class Servicer():
                 self.logger.log('results: ')
                 self.logger.log(json.dumps(results, indent=4, sort_keys=True, default=str))
 
-        post_commands = service_step.get('post_commands')
-        if post_commands:
-            for c in post_commands:
+        self.run_commands(service_step.get('post_commands'))
+
+    def run_commands(self, commands):
+        if not commands:
+            return
+
+        for c in commands:
+            if isinstance(c, dict):
+                if 'env_var' in c:
+                    result = self.run(c['command'])
+                    os.environ[c['env_var']] = result['stdout'].strip()
+            else:
                 self.run(c)
 
     def print_title(self, message='', border='----'):

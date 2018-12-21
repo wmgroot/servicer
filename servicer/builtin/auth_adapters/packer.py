@@ -33,7 +33,7 @@ class AuthAdapter(BaseAuthAdapter):
         download_path = '%s/%s' % (download_directory, download_file)
         url = 'https://releases.hashicorp.com/packer/%s/%s' % (self.version, download_file)
 
-        self.run('rm %s/packer' % download_directory)
+        self.run('rm -f %s/packer' % download_directory)
         file_path = '%s.zip' % self.path
         self.logger.log('downloading packer from %s to %s' % (url, download_path))
         urllib.request.urlretrieve(url, download_path)
