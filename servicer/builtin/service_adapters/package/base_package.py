@@ -1,6 +1,7 @@
 import os
 import glob
 import json
+import re
 
 from ..service import Service as BaseService
 from servicer.git import Git
@@ -8,6 +9,7 @@ from servicer.git import Git
 class Service(BaseService):
     def __init__(self, config=None, logger=None):
         super().__init__(config=config, logger=logger)
+        self.package_version_format = None
 
         if 'git' in config:
             self.git = config['git']['module']
@@ -45,6 +47,7 @@ class Service(BaseService):
             while True:
                 any_invalid_version = False
                 for pi in self.package_info:
+
                     pi['version_exists'] = self.if_package_version_exists(**pi)
                     if pi['version_exists']:
                         any_invalid_version = True
@@ -116,11 +119,12 @@ class Service(BaseService):
     def if_package_version_exists(self, **package_info):
         self.logger.log('checking for %s-%s...' % (package_info['name'], package_info['version']))
 
-        version_list = None
-        if 'version_source' in self.config and self.config['version_source'] == 'gcr':
-            version_list = self.get_existing_gcr_versions(**package_info)
-        else:
-            version_list = self.get_existing_versions(**package_info)
+        version_list_method_name = "get_existing_versions"
+        if 'existing_versions_source' in self.config:
+            version_list_method_name = "get_existing_%s_versions" % self.config['existing_versions_source']
+
+        version_list_method = getattr(self, version_list_method_name)
+        version_list = version_list_method(**package_info)
 
         self.logger.log('existing versions: %s' % version_list)
 
@@ -133,8 +137,6 @@ class Service(BaseService):
 
     def get_existing_gcr_versions(self, **package_info):
         docker_image = package_info['docker_image_path']
-        if 'name' in package_info:
-            docker_image = '%s/%s' % (docker_image, package_info['name'])
 
         result = self.run('gcloud container images list-tags %s --format=json' % docker_image, hide_output=True)
 
@@ -149,8 +151,18 @@ class Service(BaseService):
 
         if 'name' not in self.package_info:
             self.package_info['name'] = self.package_name(self.config['package_info']['package_file_path'])
+
+        if 'package_version_format' in self.package_info:
+            self.package_version_format = self.package_info['package_version_format']
+
+        if not self.package_version_format:
+            raise ValueError('Service must provide package_version_format.')
+
         if 'version' not in self.package_info:
+            if 'version_regex' in self.package_info:
+                self.version_regex = re.compile(self.package_info['version_regex'])
             self.package_info['version'] = self.package_version(self.config['package_info']['version_file_path'])
+            self.logger.log('package version is %s' % self.package_info['version'])
 
         self.results['package_name'] = self.package_info['name']
         if isinstance(self.results['package_name'], list):
@@ -175,7 +187,7 @@ class Service(BaseService):
                 name = result.groups()[0]
                 return name
             else:
-                raise ValueError('Package version not defined at: %s' % path)
+                raise ValueError('Package name not defined at: %s' % path)
 
     def package_version(self, path):
         with open(path) as f:
