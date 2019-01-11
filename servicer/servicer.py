@@ -563,7 +563,7 @@ class Servicer():
                     self.logger.log('found matching executable: %s' % mp['file_path'])
                     return mp['file_path']
 
-        self.logger.log('no module found!')
+        self.logger.log('no modules found!')
         sys.exit(1)
 
     def load_steps(self):
