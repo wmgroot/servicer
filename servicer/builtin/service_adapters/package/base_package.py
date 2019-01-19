@@ -32,7 +32,7 @@ class Service(BaseService):
     def run_steps(self, steps):
         for step in steps:
             getattr(self, step['type'])(**step.get('args', {}))
-    
+
     def set_auto_version(self, max_increment=10, auto_detect_version=True):
         self.logger.log('auto-versioning (auto_detect_version=%s)...' % auto_detect_version)
 
@@ -46,7 +46,7 @@ class Service(BaseService):
             while True:
                 any_invalid_version = False
                 for pi in self.package_info:
-                    
+
                     pi['version_exists'] = self.if_package_version_exists(**pi)
                     if pi['version_exists']:
                         any_invalid_version = True
@@ -167,7 +167,6 @@ class Service(BaseService):
 
         if 'version' not in self.package_info:
             if 'version_regex' in self.package_info:
-                print('version_regex in text is: %s' % self.package_info['version_regex'])
                 self.version_regex = re.compile(self.package_info['version_regex'])
             self.package_info['version'] = self.package_version(self.config['package_info']['version_file_path'])
             print('package version is %s' % self.package_info['version'])
