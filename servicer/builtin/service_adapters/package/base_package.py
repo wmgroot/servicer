@@ -33,16 +33,6 @@ class Service(BaseService):
         for step in steps:
             getattr(self, step['type'])(**step.get('args', {}))
     
-    def print_dict(dictionary, ident = '', braces=1):
-        """ Recursively prints nested dictionaries."""
-
-        for key, value in dictionary.iteritems():
-            if isinstance(value, dict):
-                print('%s%s%s%s' %(ident, braces*'[', key, braces*']'))
-                print_dict(value, ident+'  ', braces+1)
-            else:
-                print(ident + '%s = %s' %(key, value))
-
     def set_auto_version(self, max_increment=10, auto_detect_version=True):
         self.logger.log('auto-versioning (auto_detect_version=%s)...' % auto_detect_version)
 
@@ -51,15 +41,11 @@ class Service(BaseService):
             self.package_info = [self.package_info]
 
         if auto_detect_version:
-            print('auto_detect_version is true')
             current_increment = 0
             version_changed = False
             while True:
-                print('looping...')
                 any_invalid_version = False
-                # Loop through the package_info of every (package-based?) service
                 for pi in self.package_info:
-                    print('service name: %s' % pi['name'])
                     
                     pi['version_exists'] = self.if_package_version_exists(**pi)
                     if pi['version_exists']:
@@ -144,22 +130,18 @@ class Service(BaseService):
         return package_info['version_exists']
 
     def get_existing_versions(self, **package_info):
-        if 'version_source' in self.config:
-            raise NameError('Service must provide version_source.')
+        if 'existing_versions_source' not in package_info:
+            raise NameError('Service must provide existing_versions_source.')
+        print('existing_versions_source is: %s' % package_info['existing_versions_source'])
 
-        version_list_method_name = "get_existing_%s_versions" % package_info['version_source']
-        print('version_list_method_name is: %s' % version_list_method_name)
-        version_list_method = getattr(self, version_list_method_name)
-        version_list = version_list_method(**package_info)
+        versions_list_method_name = "get_existing_%s_versions" % package_info['existing_versions_source']
+        versions_list_method = getattr(self, versions_list_method_name)
+        version_list = versions_list_method(**package_info)
 
         return version_list
 
     def get_existing_gcr_versions(self, **package_info):
-        print('getting existing gcr versions...')
         docker_image = package_info['docker_image_path']
-        # BREAKING CHANGE
-        #if 'name' in package_info:
-        #    docker_image = '%s/%s' % (docker_image, package_info['name'])
 
         result = self.run('gcloud container images list-tags %s --format=json' % docker_image, hide_output=True)
 

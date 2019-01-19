@@ -67,10 +67,6 @@ class Service(BasePackageService):
             if os.path.exists(package_version_path):
                 for sv in scala_versions:
                     pi = self.config['package_info'].copy()
-                    # TODO Each version.sbt is associated with on service.
-                    # It needs to be possible to define the name of the service (pi['name'])
-                    # explicitly in the definition of the service, or the autoversioning will
-                    # fail.
                     pi['name'] = self.package_name(package_file_path)
                     pi['scala_version'] = sv
                     pi['version'] = self.package_version(package_version_path)
