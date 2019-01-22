@@ -132,7 +132,7 @@ class Service(BaseService):
     def get_existing_versions(self, **package_info):
         if 'existing_versions_source' not in package_info:
             raise NameError('Service must provide existing_versions_source.')
-        print('existing_versions_source is: %s' % package_info['existing_versions_source'])
+        self.logger.log('existing_versions_source is: %s' % package_info['existing_versions_source'])
 
         versions_list_method_name = "get_existing_%s_versions" % package_info['existing_versions_source']
         versions_list_method = getattr(self, versions_list_method_name)
@@ -169,7 +169,7 @@ class Service(BaseService):
             if 'version_regex' in self.package_info:
                 self.version_regex = re.compile(self.package_info['version_regex'])
             self.package_info['version'] = self.package_version(self.config['package_info']['version_file_path'])
-            print('package version is %s' % self.package_info['version'])
+            self.logger.log('package version is %s' % self.package_info['version'])
 
         self.results['package_name'] = self.package_info['name']
         if isinstance(self.results['package_name'], list):
