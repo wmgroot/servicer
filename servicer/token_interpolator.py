@@ -6,12 +6,25 @@ class TokenInterpolator():
 
     def interpolate_tokens(self, config, params, ignore_missing_key=False, ignore_default=False):
         if isinstance(config, dict):
+
+            keys_to_change = []
+            for key in config.keys():
+                new_key = self.replace_tokens(key, params, ignore_missing_key, ignore_default)
+                if new_key is not None and new_key not in config.keys():
+                    keys_to_change.append((key, new_key))
+
+            for k in keys_to_change:
+                config[k[1]] = config[k[0]]
+                config.pop(k[0])
+
             for key, value in config.items():
                 if isinstance(value, str):
                     config[key] = self.replace_tokens(value, params, ignore_missing_key, ignore_default)
                 else:
                     self.interpolate_tokens(value, params, ignore_missing_key, ignore_default)
+
         elif isinstance(config, list):
+
             for i in range(len(config)):
                 if isinstance(config[i], str):
                     config[i] = self.replace_tokens(config[i], params, ignore_missing_key, ignore_default)
@@ -25,6 +38,10 @@ class TokenInterpolator():
             token = match[2:-1]
 
             replace_value = self.evaluate_token(match, params, ignore_default)
+
+            # allow list replacement, replace entire string value with the list
+            if isinstance(replace_value, list):
+                return replace_value
 
             if replace_value:
                 for ev in escaped_values:
