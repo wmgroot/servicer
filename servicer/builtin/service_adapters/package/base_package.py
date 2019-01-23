@@ -9,6 +9,7 @@ from servicer.git import Git
 class Service(BaseService):
     def __init__(self, config=None, logger=None):
         super().__init__(config=config, logger=logger)
+        self.package_version_format = None
 
         if 'git' in config:
             self.git = config['git']['module']
@@ -157,13 +158,11 @@ class Service(BaseService):
         if 'name' not in self.package_info:
             self.package_info['name'] = self.package_name(self.config['package_info']['package_file_path'])
 
-        try:
-            self.package_version_format
-        except AttributeError:
-            if 'package_version_format' in self.package_info:
-                self.package_version_format = self.package_info['package_version_format']
-            else:
-                raise NameError('Service must provide package_version_format.')
+        if 'package_version_format' in self.package_info:
+            self.package_version_format = self.package_info['package_version_format']
+
+        if not self.package_version_format:
+            raise ValueError('Service must provide package_version_format.')
 
         if 'version' not in self.package_info:
             if 'version_regex' in self.package_info:
