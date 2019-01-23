@@ -119,7 +119,12 @@ class Service(BaseService):
     def if_package_version_exists(self, **package_info):
         self.logger.log('checking for %s-%s...' % (package_info['name'], package_info['version']))
 
-        version_list = self.get_existing_versions(**package_info)
+        version_list_method_name = "get_existing_versions"
+        if 'existing_versions_source' in self.config:
+            version_list_method_name = "get_existing_%s_versions" % self.config['existing_versions_source']
+
+        version_list_method = getattr(self, version_list_method_name)
+        version_list = version_list_method(**package_info)
 
         self.logger.log('existing versions: %s' % version_list)
 
@@ -129,17 +134,6 @@ class Service(BaseService):
                 raise ValueError('Package already exists! %s-%s' % (package_info['name'], package_info['version']))
 
         return package_info['version_exists']
-
-    def get_existing_versions(self, **package_info):
-        if 'existing_versions_source' not in package_info:
-            raise NameError('Service must provide existing_versions_source.')
-        self.logger.log('existing_versions_source is: %s' % package_info['existing_versions_source'])
-
-        versions_list_method_name = "get_existing_%s_versions" % package_info['existing_versions_source']
-        versions_list_method = getattr(self, versions_list_method_name)
-        version_list = versions_list_method(**package_info)
-
-        return version_list
 
     def get_existing_gcr_versions(self, **package_info):
         docker_image = package_info['docker_image_path']
