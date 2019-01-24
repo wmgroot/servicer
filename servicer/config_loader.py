@@ -44,11 +44,11 @@ class ConfigLoader():
 
         self.merge_config(config, merge_config)
 
-    def merge_included_configs(self, config_path=None, config=None):
+    def merge_included_configs(self, config_path=None, config=None, params={}):
         iterable = None
 
         if isinstance(config, dict):
-            self.load_include_configs(config_path=config_path, config=config)
+            self.load_include_configs(config_path=config_path, config=config, params=params)
             iterable = config.values()
         elif isinstance(config, list):
             iterable = config
@@ -57,7 +57,7 @@ class ConfigLoader():
             for value in iterable:
                 self.merge_included_configs(config_path=config_path, config=value)
 
-    def load_include_configs(self, config_path=None, config=None):
+    def load_include_configs(self, config_path=None, config=None, params={}):
         if 'includes' not in config:
             return
 
@@ -67,11 +67,10 @@ class ConfigLoader():
 
         for include in includes:
             path = include
-            params = {}
 
             if isinstance(include, dict):
                 path = include['path']
-                params = include['params']
+                params.update(include['params'])
 
             config_path_pieces = config_path.split('/')
             include_path = '%s/%s' % ('/'.join(config_path_pieces[:-1]), path)
@@ -80,9 +79,10 @@ class ConfigLoader():
 
             include_config = {}
             self.load_extended_config(config_path=include_path, config=include_config)
-            self.merge_included_configs(config_path=self.servicer_config_file_path, config=include_config)
+            self.merge_included_configs(config_path=self.servicer_config_file_path, config=include_config, params=params)
 
             if params:
+                self.token_interpolator.interpolate_tokens(params, params, ignore_missing_key=True, ignore_default=True)
                 self.token_interpolator.interpolate_tokens(include_config, params, ignore_missing_key=True, ignore_default=True)
 
             self.merge_config(config, include_config)
