@@ -137,6 +137,8 @@ class Service(BaseService):
 
     def get_existing_gcr_versions(self, **package_info):
         docker_image = package_info['docker_image_path']
+        if 'gcr_package_subdir' in package_info and package_info['gcr_package_subdir']:
+            docker_image = '%s/%s' % (docker_image, package_info['name'])
 
         result = self.run('gcloud container images list-tags %s --format=json' % docker_image, hide_output=True)
 
