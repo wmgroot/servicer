@@ -623,9 +623,6 @@ class Servicer():
         if 'module' not in service:
             self.load_service_module(service)
 
-        # allow interpolation of result values from prior service-steps
-        self.token_interpolator.interpolate_tokens(service_step, self.config)
-
         self.run_commands(service_step.get('commands'))
 
         if 'config' in service_step:
@@ -636,8 +633,12 @@ class Servicer():
                     config['git'] = {}
                 config['git']['module'] = self.git
 
+            interpolation_params = {**self.config, **os.environ}
+            self.token_interpolator.interpolate_tokens(config, interpolation_params)
+
             adapter = service['module'].Service(config, logger=self.logger)
             adapter.full_config = self.config
+
             results = adapter.up()
 
             if results:
@@ -654,10 +655,15 @@ class Servicer():
         for c in commands:
             if isinstance(c, dict):
                 if 'env_var' in c:
-                    result = self.run(c['command'])
+                    result = self.run_command(c['command'])
                     os.environ[c['env_var']] = result['stdout'].strip()
             else:
-                self.run(c)
+                self.run_command(c)
+
+    def run_command(self, command):
+        interpolation_params = {**self.config, **os.environ}
+        command = self.token_interpolator.replace_tokens(command, interpolation_params)
+        return self.run(command)
 
     def print_title(self, message='', border='----'):
         inner_text = ' %s ' % message
