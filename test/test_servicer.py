@@ -160,6 +160,7 @@ class RunServiceStepTest(ServicerTest):
             service['module'] = self.module
 
         self.servicer.load_service_module = mock.Mock(side_effect=mock_load_service_module)
+        self.servicer.run_commands = mock.Mock()
 
         self.service = {
             'module': self.module,
@@ -175,18 +176,25 @@ class RunServiceStepTest(ServicerTest):
 
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
-        self.servicer.run.assert_not_called()
-        self.servicer.token_interpolator.interpolate_tokens.assert_called_with({}, {})
+        self.assertEqual(self.servicer.run_commands.mock_calls, [
+            mock.call(None),
+            mock.call(None),
+        ])
+        self.servicer.token_interpolator.interpolate_tokens.assert_not_called()
 
     def test_runs_a_service_step_with_config_and_no_module(self):
         self.service.pop('module')
+        os.environ = {}
 
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
         self.servicer.load_service_module.assert_called_with(self.service)
 
-        self.servicer.run.assert_not_called()
-        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build'], self.servicer.config)
+        self.assertEqual(self.servicer.run_commands.mock_calls, [
+            mock.call(None),
+            mock.call(None),
+        ])
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with({}, self.servicer.config)
         self.assertEqual(self.service['steps']['build']['results'], 'service-step results')
 
     def test_runs_a_service_step_with_module_and_no_config(self):
@@ -194,14 +202,21 @@ class RunServiceStepTest(ServicerTest):
 
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
-        self.servicer.run.assert_not_called()
-        self.servicer.token_interpolator.interpolate_tokens.assert_called_with({}, {})
+        self.assertEqual(self.servicer.run_commands.mock_calls, [
+            mock.call(None),
+            mock.call(None),
+        ])
+        self.servicer.token_interpolator.interpolate_tokens.assert_not_called()
 
     def test_runs_a_service_step_with_module_and_config(self):
+        os.environ = {}
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
-        self.servicer.run.assert_not_called()
-        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build'], self.servicer.config)
+        self.assertEqual(self.servicer.run_commands.mock_calls, [
+            mock.call(None),
+            mock.call(None),
+        ])
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with({}, {})
 
         self.assertTrue('git' not in self.service['steps']['build']['config'])
         self.assertEqual(self.service['steps']['build']['results'], 'service-step results')
@@ -209,11 +224,15 @@ class RunServiceStepTest(ServicerTest):
     def test_runs_a_service_step_with_git_integration(self):
         self.servicer.config['git'] = {'enabled': True}
         self.servicer.git = {}
+        os.environ = {}
 
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
-        self.servicer.run.assert_not_called()
-        self.servicer.token_interpolator.interpolate_tokens.assert_called_with(self.service['steps']['build'], self.servicer.config)
+        self.assertEqual(self.servicer.run_commands.mock_calls, [
+            mock.call(None),
+            mock.call(None),
+        ])
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with({'git': {'module': {}}}, self.servicer.config)
 
         self.assertEqual(self.service['steps']['build']['config']['git'], {'module': {}})
         self.assertEqual(self.service['steps']['build']['results'], 'service-step results')
@@ -230,9 +249,7 @@ class RunServiceStepTest(ServicerTest):
 
         result = self.servicer.run_service_step(self.service, self.service['steps']['build'])
 
-        self.servicer.run.assert_has_calls([
-            mock.call('pre-command1.sh'),
-            mock.call('rm -rf treeeeee xD'),
-            mock.call('cowsay moo'),
-            mock.call('yes | lolcat'),
+        self.assertEqual(self.servicer.run_commands.mock_calls, [
+            mock.call(['pre-command1.sh', 'rm -rf treeeeee xD']),
+            mock.call(['cowsay moo', 'yes | lolcat']),
         ])
