@@ -20,6 +20,7 @@ setup(
     },
     include_package_data = True,
     install_requires = [
+        'pyOpenSSL==19.0.0',
         'PyYAML==4.2b4',
         'requests==2.20.1',
     ],
@@ -30,5 +31,5 @@ setup(
     packages = find_packages(),
     python_requires = '>=3.5',
     url = 'https://github.com/wmgroot/servicer',
-    version = '0.10.2',
+    version = '0.10.3',
 )
