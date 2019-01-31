@@ -5,6 +5,14 @@ environment:
       environment: production
     - branch: develop
     - branch: env-*
+  formatter:
+    lowercase: false
+    replace:
+      - from:
+        - '/'
+        - '\\'
+        - '_'
+        to: '-'
 
 git:
   # enable servicer git integration

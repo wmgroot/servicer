@@ -82,19 +82,19 @@ class Servicer():
 
     def load_arguments(self):
         parser = argparse.ArgumentParser(description='Process deployment options.')
-        parser.add_argument('--generate_ci', action='store_true', help='generate a ci config file, do not run any deploy options')
-        parser.add_argument('--service', help='deploy only the provided service')
-        parser.add_argument('--services_file', default='services.yaml', help='custom path to your services config file (default is services.yaml)')
-        parser.add_argument('--servicer_config_path', default='%s/.servicer' % os.getcwd(), help='path to your servicer directory (default is ./servicer)')
+        parser.add_argument('-g', '--generate_ci', action='store_true', help='generate a ci config file, do not run any deploy options')
+        parser.add_argument('-s', '--service', help='deploy only the provided service')
+        parser.add_argument('-f', '--services_file', default='services.yaml', help='custom path to your services config file (default is services.yaml)')
+        parser.add_argument('-p', '--servicer_config_path', default='%s/.servicer' % os.getcwd(), help='path to your servicer directory (default is ./servicer)')
         parser.add_argument('--env_file_paths', default='%s/.servicer/.env.yaml:%s/.servicer/.env.yaml' % (os.getenv('HOME'), os.getcwd()), help='paths to your local .env files, colon-separated')
         parser.add_argument('--step', help='perform the comma-separated build steps, defaults to all steps')
-        parser.add_argument('--show_config', action='store_true', help='prints the interpolated config file')
-        parser.add_argument('--no_ignore_unchanged', action='store_true', help='disables ignoring services through change detection')
+        parser.add_argument('-c', '--show_config', action='store_true', help='prints the interpolated config file')
+        parser.add_argument('-u', '--no_ignore_unchanged', '--no_cd', action='store_true', help='disables ignoring services through change detection')
         parser.add_argument('--no_tag', action='store_true', help='disables build tagging')
         parser.add_argument('--no_auth', action='store_true', help='disables build authentication, useful if you are already authenticated locally')
-        parser.add_argument('--ignore_dependencies', action='store_true', help='disables automatic dependency execution')
+        parser.add_argument('-d', '--ignore_dependencies', action='store_true', help='disables automatic dependency execution')
         parser.add_argument('--tag', action='store_true', help='generate a git tag')
-        parser.add_argument('--version', action='store_true', help='display the package version')
+        parser.add_argument('-v', '--version', action='store_true', help='display the package version')
         return parser.parse_args()
 
     def load_environment(self, args):
@@ -172,9 +172,16 @@ class Servicer():
         service_environment, self.service_environment_config = self.map_service_environment(branch, mappings)
 
         if service_environment:
-            for ch in ['\\', '/', '_']:
-                if ch in service_environment:
-                    service_environment = service_environment.replace(ch, '-')
+            formatter = self.config['environment']['formatter']
+
+            if 'replace' in formatter:
+                for replacer in formatter['replace']:
+                    for f in replacer['from']:
+                        if f in service_environment:
+                            service_environment = service_environment.replace(f, replacer['to'])
+
+            if formatter.get('lowercase'):
+                service_environment = service_environment.lower()
 
             if 'variables' in self.service_environment_config:
                 self.config_loader.load_environment_variables(self.service_environment_config['variables'])
