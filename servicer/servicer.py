@@ -172,16 +172,16 @@ class Servicer():
         service_environment, self.service_environment_config = self.map_service_environment(branch, mappings)
 
         if service_environment:
-            formatter = self.config['environment']['formatter']
+            formatter = self.config['environment'].get('formatter')
+            if formatter:
+                if 'replace' in formatter:
+                    for replacer in formatter['replace']:
+                        for f in replacer['from']:
+                            if f in service_environment:
+                                service_environment = service_environment.replace(f, replacer['to'])
 
-            if 'replace' in formatter:
-                for replacer in formatter['replace']:
-                    for f in replacer['from']:
-                        if f in service_environment:
-                            service_environment = service_environment.replace(f, replacer['to'])
-
-            if formatter.get('lowercase'):
-                service_environment = service_environment.lower()
+                if formatter.get('lowercase'):
+                    service_environment = service_environment.lower()
 
             if 'variables' in self.service_environment_config:
                 self.config_loader.load_environment_variables(self.service_environment_config['variables'])

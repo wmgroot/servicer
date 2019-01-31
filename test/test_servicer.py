@@ -82,6 +82,11 @@ class GetServiceEnvironmentTest(ServicerTest):
         self.servicer.config = {}
         self.servicer.config['environment'] = {
             'mappings': [{ 'branch': 'foo', 'environment': 'bar' }],
+            'formatter': {
+                'replace': [
+                    { 'from': ['/', '_'], 'to': '-' },
+                ],
+            },
         }
 
     def test_custom_mappings(self):
