@@ -6,13 +6,19 @@ environment:
     - branch: develop
     - branch: env-*
   formatter:
+    # convert all characters to lowercase
     lowercase: false
+    # replace all 'from' strings with the 'to' string
     replace:
       - from:
         - '/'
         - '\\'
         - '_'
         to: '-'
+    # limits service environment to N characters
+    truncate: null
+    # convert all characters to uppercase
+    uppercase: false
 
 git:
   # enable servicer git integration

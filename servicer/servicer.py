@@ -180,8 +180,14 @@ class Servicer():
                             if f in service_environment:
                                 service_environment = service_environment.replace(f, replacer['to'])
 
+                if formatter.get('uppercase'):
+                    service_environment = service_environment.upper()
                 if formatter.get('lowercase'):
                     service_environment = service_environment.lower()
+
+                truncate = formatter.get('truncate')
+                if truncate:
+                    service_environment = service_environment[:truncate]
 
             if 'variables' in self.service_environment_config:
                 self.config_loader.load_environment_variables(self.service_environment_config['variables'])

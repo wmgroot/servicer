@@ -41,7 +41,7 @@ These commands can be run locally or in the context of a CI job.
 By default, all service-step dependencies will also be executed. If you will like to disable this behavior, use the `--ignore_dependencies` flag.
 
 ## Configuration ##
-`.servicer/services.yaml` must be present at the root of your project. `servicer/builtin/defaults.yaml` (in this repository) contains default values and descriptions of the values you can provide in `.servicer/services.yaml`.
+`.servicer/services.yaml` must be present at the root of your project. `servicer/builtin/defaults.yaml` (https://github.com/wmgroot/servicer/blob/master/servicer/builtin/defaults.yaml) contains default values and descriptions of the values you can provide in `.servicer/services.yaml`.
 
 Within this *Configuration* section of the README, consider each of these subsections to compose the `services.yaml` on one project.
 
