@@ -9,6 +9,7 @@ class ServicerTest(TestCase):
         self.servicer = Servicer(args={}, init=False)
 
         self.servicer.run = mock.Mock()
+        self.servicer.logger = mock.Mock()
         self.servicer.token_interpolator = mock.Mock()
         self.servicer.token_interpolator.interpolate_tokens = mock.Mock()
         self.servicer.dependency_grapher = mock.Mock()
@@ -154,7 +155,9 @@ class RunServiceStepTest(ServicerTest):
     def setUp(self):
         super().setUp()
 
-        self.servicer.config = {}
+        self.servicer.config = {
+            'args': {}
+        }
 
         self.adapter = mock.Mock()
         self.adapter.up = mock.Mock(return_value='service-step results')
@@ -221,7 +224,7 @@ class RunServiceStepTest(ServicerTest):
             mock.call(None),
             mock.call(None),
         ])
-        self.servicer.token_interpolator.interpolate_tokens.assert_called_with({}, {})
+        self.servicer.token_interpolator.interpolate_tokens.assert_called_with({}, self.servicer.config)
 
         self.assertTrue('git' not in self.service['steps']['build']['config'])
         self.assertEqual(self.service['steps']['build']['results'], 'service-step results')

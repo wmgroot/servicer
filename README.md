@@ -40,6 +40,12 @@ These commands can be run locally or in the context of a CI job.
 
 By default, all service-step dependencies will also be executed. If you will like to disable this behavior, use the `--ignore_dependencies` flag.
 
+If you would like to execute a test run of servicer without actually executing any service-steps, you can add the `--dry` flag.
+
+To set the desired logging level (debug, info, warn, error), use the `--log_level` flag.
+
+For a complete list of flags and options that can be provided to the `servicer` command, please see `servicer --help`.
+
 ## Configuration ##
 `.servicer/services.yaml` must be present at the root of your project. `servicer/builtin/defaults.yaml` (https://github.com/wmgroot/servicer/blob/master/servicer/builtin/defaults.yaml) contains default values and descriptions of the values you can provide in `.servicer/services.yaml`.
 
@@ -392,6 +398,20 @@ steps:
         - config:
           steps:
             - type: commit_and_push_changes
+```
+
+### Environment Destruction ###
+Because every environment setup is unique, environment destruction is not automated. However, by configuring the `destroy` step for services, you can condense the complete destruction of a service environment into a single command:
+
+`SERVICE_ENVIRONMENT=my-env servicer --destroy`
+
+Example kubernetes destroy configuration, assuming your services exist within a kubernetes namespace that matches your service_environment name:
+```
+services:
+  kubernetes:
+    destroy:
+      commands:
+        - kubectl delete ns ${SERVICE_ENVIRONMENT}
 ```
 
 ## Advanced Servicer Use Cases ##
