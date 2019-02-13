@@ -18,11 +18,6 @@ from .logger import Logger
 
 class Servicer():
     def __init__(self, args=None, init=True):
-        logger_params = {}
-        if os.getenv('DEBUG'):
-            logger_params['level'] = 'debug'
-        self.logger = Logger(**logger_params)
-
         if not init:
             return
 
@@ -30,10 +25,18 @@ class Servicer():
 
         self.version = pkg_resources.get_distribution('servicer').version
         self.run = run
-        self.token_interpolator = TokenInterpolator(logger=self.logger)
 
         if args == None:
             args = vars(self.load_arguments())
+
+        logger_params = {
+            'level': args['log_level']
+        }
+        if os.getenv('DEBUG'):
+            logger_params['level'] = 'debug'
+        self.logger = Logger(**logger_params)
+
+        self.token_interpolator = TokenInterpolator(logger=self.logger)
 
         if 'version' in args and args['version']:
             self.logger.log(self.version)
@@ -82,6 +85,7 @@ class Servicer():
 
     def load_arguments(self):
         parser = argparse.ArgumentParser(description='Process deployment options.')
+
         parser.add_argument('-g', '--generate_ci', action='store_true', help='generate a ci config file, do not run any deploy options')
         parser.add_argument('-s', '--service', help='deploy only the provided service')
         parser.add_argument('-f', '--services_file', default='services.yaml', help='custom path to your services config file (default is services.yaml)')
@@ -95,6 +99,10 @@ class Servicer():
         parser.add_argument('-d', '--ignore_dependencies', action='store_true', help='disables automatic dependency execution')
         parser.add_argument('--tag', action='store_true', help='generate a git tag')
         parser.add_argument('-v', '--version', action='store_true', help='display the package version')
+        parser.add_argument('-x', '--destroy', action='store_true', help='destroy the current service environment')
+        parser.add_argument('--dry', action='store_true', help='skip all service-step actions')
+        parser.add_argument('--log_level', default='info', help='set the desired logging level, options are: [info,debug,warn,error]')
+
         return parser.parse_args()
 
     def load_environment(self, args):
@@ -502,10 +510,14 @@ class Servicer():
             self.logger.log('skipping provider initialization for %s (no_auth enabled, assuming already authenticated)' % provider_name)
             return
 
+        if 'providers' not in self.config:
+            return
+
         provider = self.config['providers'].get(provider_name)
 
         if provider == None:
-            return
+            self.logger.log('ERROR: no provider definition found for: %s' % provider_name, level='error')
+            return  # TODO: replace this return with sys.exit(1)
 
         provider['name'] = provider_name
 
@@ -582,8 +594,12 @@ class Servicer():
     def load_steps(self):
         self.steps = {}
         self.step_order = []
+
         if 'steps' in self.config:
             for step in self.config['steps']:
+                if step['name'] == 'destroy' and not ('destroy' in self.config['args'] and self.config['args']['destroy']):
+                    continue
+
                 self.steps[step['name']] = step
                 self.step_order.append(step['name'])
 
@@ -592,12 +608,31 @@ class Servicer():
         else:
             self.active_steps = self.step_order.copy()
 
+        print(self.active_steps)
+
     def run_service_steps(self):
-        self.print_title('running service steps')
+        self.print_title('executing service-steps')
         self.logger.log(json.dumps(self.service_step_order, indent=4))
         self.logger.log()
 
         service_steps = [item for sublist in self.service_step_order for item in sublist]
+
+        if 'destroy' in self.config['args'] and self.config['args']['destroy']:
+            self.print_title('destroying services (in reverse dependency order)')
+            destroyed_services = set()
+            destroy_service_steps = []
+
+            for ss in reversed(service_steps):
+                service_name = ss.split(':')[0]
+                if service_name not in destroyed_services:
+                    destroyed_services.add(service_name)
+
+                    if 'steps' in self.config['services'][service_name] and 'destroy' in self.config['services'][service_name]['steps']:
+                        destroy_step = '%s:%s' % (service_name, 'destroy')
+                        destroy_service_steps.append(destroy_step)
+
+            service_steps = destroy_service_steps
+            self.logger.log(json.dumps(service_steps, indent=4))
 
         for service_step_name in service_steps:
             ss_pieces = service_step_name.split(':')
@@ -652,12 +687,15 @@ class Servicer():
             adapter = service['module'].Service(config, logger=self.logger)
             adapter.full_config = self.config
 
-            results = adapter.up()
+            if 'dry' in self.config['args'] and self.config['args']['dry']:
+                self.logger.log('DRY: adapter.up(): %s' % service.get('service_type'))
+            else:
+                results = adapter.up()
 
-            if results:
-                service_step['results'] = results
-                self.logger.log('results: ')
-                self.logger.log(json.dumps(results, indent=4, sort_keys=True, default=str))
+                if results:
+                    service_step['results'] = results
+                    self.logger.log('results: ')
+                    self.logger.log(json.dumps(results, indent=4, sort_keys=True, default=str))
 
         self.run_commands(service_step.get('post_commands'))
 
@@ -676,6 +714,11 @@ class Servicer():
     def run_command(self, command):
         interpolation_params = {**self.config, **os.environ}
         command = self.token_interpolator.replace_tokens(command, interpolation_params)
+
+        if 'dry' in self.config['args'] and self.config['args']['dry']:
+            self.logger.log('DRY: executing: %s' % command)
+            return
+
         return self.run(command)
 
     def print_title(self, message='', border='----'):
