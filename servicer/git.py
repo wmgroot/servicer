@@ -50,7 +50,7 @@ class Git():
         self.run(command, hide_output=hide_output or self.hide_output)
 
         if push:
-            self.push(ref=tag)
+            self.push(ref=tag, no_verify=True)
 
     def delete_tag(self, tags):
         if not isinstance(tags, list):
@@ -58,7 +58,7 @@ class Git():
 
         for tag in tags:
             self.run('git tag -d %s' % tag, check=False)
-            self.push(ref=':refs/tags/%s' % tag)
+            self.push(ref=':refs/tags/%s' % tag, no_verify=True)
 
     def list_tags(self):
         result = self.run('git tag', hide_output=True)
