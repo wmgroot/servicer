@@ -7,6 +7,7 @@ import argparse
 import yaml
 import re
 import copy
+import imp
 from datetime import datetime
 
 from .config_loader import ConfigLoader
@@ -89,7 +90,7 @@ class Servicer():
         parser.add_argument('-g', '--generate_ci', action='store_true', help='generate a ci config file, do not run any deploy options')
         parser.add_argument('-s', '--service', help='deploy only the provided service')
         parser.add_argument('-f', '--services_file', default='services.yaml', help='custom path to your services config file (default is services.yaml)')
-        parser.add_argument('-p', '--servicer_config_path', default='%s/.servicer' % os.getcwd(), help='path to your servicer directory (default is ./servicer)')
+        parser.add_argument('-p', '--servicer_config_path', default='%s/.servicer' % os.getcwd(), help='path to your servicer directory (default is ./.servicer)')
         parser.add_argument('--env_file_paths', default='%s/.servicer/.env.yaml:%s/.servicer/.env.yaml' % (os.getenv('HOME'), os.getcwd()), help='paths to your local .env files, colon-separated')
         parser.add_argument('--step', help='perform the comma-separated build steps, defaults to all steps')
         parser.add_argument('-c', '--show_config', action='store_true', help='prints the interpolated config file')
@@ -582,7 +583,16 @@ class Servicer():
                 if 'name' in mp:
                     self.logger.log('importing: %s:%s' % (mp['name'], mp['package']), level='debug')
 
-                    module = importlib.import_module(mp['name'])
+                    module = None
+                    try:
+                        module = importlib.import_module(mp['name'])
+                    except ModuleNotFoundError:
+                        self.logger.log('falling back to import via imp: %s' % mp['file_path'], level='debug')
+
+                        with open(mp['file_path'], 'rb') as fp:
+                            config_dir = self.config['args']['servicer_config_path'].split('/')[-1]
+                            module = imp.load_module('%s/%s' % (config_dir, mp['name']), fp, mp['file_path'], ('.py', 'rb', imp.PY_SOURCE))
+
                     return module
                 else:
                     self.logger.log('found matching executable: %s' % mp['file_path'])
