@@ -73,6 +73,11 @@ environment:
 ```
 Servicer requires several environment variables to be configured which control the parameters of each service. Some of these environment variables will be automatically pulled from your CI environment and standardized by the CI Adapter it is using. Check the relevant adapter file in `servicer/builtin/ci_adapters`. The remaining variables may be specific to each service adapter, and will need to be configured in your CI environment, or defined in the `environment` section of `services.yaml`.
 
+#### CI Adapters ####
+In order to standardize the environment Servicer runs in, a CI Adapter is used. Each CIAdapter is a python class that populates an instance variable called `env_map`, which contains key value pairs mapping environment variable names to their standardized Servicer equivalents.
+
+Servicer provides default CI Adapters for your convenience. Please explore the `servicer/builtin/ci_adapters` directory to see what's available for each CI provider. In order to customize servicer to your needs, you can create your own CI Adapters in your project. By default, servicer will prefer CI Adapters found in the `.servicer/ci_adapters` directory of your project. See the Advanced Servicer Use Cases for more information on adapter overrides.
+
 ### Steps ###
 _Steps_ are actions that Servicer will execute to accomplish its work on the services. Steps are declared project-wide in `services.yaml`. In the example below, several steps are defined.
 
@@ -419,19 +424,36 @@ Servicer's core interface with external CI's, cloud provider APIs, etc, exists a
 
 To override an Adapter, simply mirror the directory structure of `builtin` directly inside your `.servicer` folder.
 ```
-.servicer
-  __init__.py
-  service_adapters
-    __init__.py
-    aws
-      __init__.py
+.servicer/
+  service_adapters/
+    aws/
       rds_instance.py  # this overrides servicer's builtin rds_instance adapter
-      new_adapter.py
+      custom_task_service.py
   services.yaml
 ```
-`new_adapter.py` can also inherit from servicer's `builtin` adapter classes, and selectively override just the functionality that isn't working for you.
+`custom_task_service.py` can also inherit from servicer's `builtin` adapter classes, and selectively override just the functionality that isn't working for you.
 
-### CI Adapters ###
-In order to standardize the environment Servicer runs in, a CI Adapter is used. Each CIAdapter is a python class that populates an instance variable called `env_map`, which contains key value pairs mapping environment variable names to their standardized Servicer equivalents.
+```
+#custom_adapter.py
 
-Servicer provides default CI Adapters for your convenience. Please explore the `builtin/ci_adapters` directory to see what's available for each CI provider. In order to customize servicer to your needs, you can create your own CI Adapters in your project. By default, servicer will prefer CI Adapters found in the `.servicer/ci_adapters` directory of your project.
+from servicer.builtin.service_adapters.task_service import Service as BaseService
+
+class Service(BaseService):
+    # overrides task_service.Service's up() method, but still calls it
+    def up(self):
+        super().up()
+
+        print('my custom logic here!')
+
+    def foo(self):
+        print('bar')
+
+```
+
+Then you can utilize your custom service adapters like you normally would with builtin adapters:
+
+```
+services:
+  my-service:
+    service_type: aws/custom_task_service
+```

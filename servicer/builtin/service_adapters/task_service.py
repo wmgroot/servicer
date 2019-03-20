@@ -12,7 +12,8 @@ class Service(BaseService):
 
     def run_tasks(self, tasks):
         for task in tasks:
-            getattr(self, task['type'])(**task['args'])
+            args = task.get('args', {})
+            getattr(self, task['type'])(**args)
 
     def interpolate_file(self, files=[], ignore_missing_key=False):
         if not isinstance(files, list):
