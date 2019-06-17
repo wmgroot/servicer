@@ -714,10 +714,43 @@ class Servicer():
             return
 
         for c in commands:
+            context = None
+
             if isinstance(c, dict):
                 if 'env_var' in c:
                     result = self.run_command(c['command'])
                     os.environ[c['env_var']] = result['stdout'].strip()
+
+                if 'commands' in c:
+
+                    if 'context' in c:
+                        if 'join' in c['context']:
+                            c['commands'] = [c['context']['join'].join(c['commands'])]
+
+                        if 'template' in c['context']:
+                            c['commands'] = [c['context']['template'] % _c for _c in c['commands']]
+
+                        if 'docker' in c['context']:
+                            docker_context = c['context']['docker']
+                            docker_command = 'docker run -it'
+
+                            for key in docker_context.get('options', {}):
+                                if not isinstance(docker_context['options'][key], list):
+                                    docker_context['options'][key] = [docker_context['options'][key]]
+
+                                for value in docker_context['options'][key]:
+                                    arg_value = value
+                                    if isinstance(value, dict) and 'from' in value and 'to' in value:
+                                        arg_value = '%s:%s' % (value['from'], value['to'])
+                                    docker_command += ' --%s=%s' % (key, arg_value)
+
+                            docker_command += ' %s' % c['context']['docker']['image']
+
+                            context_commands = ['%s %s' % (docker_command, _c) for _c in c['commands']]
+
+                    for cmd in context_commands:
+                        self.run_command(cmd)
+
             else:
                 self.run_command(c)
 
