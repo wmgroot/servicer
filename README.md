@@ -218,8 +218,42 @@ A wildcard may also be provided in the place of a service name. For example, `*:
 ```
 This concludes the single, long `services.yaml` example above.
 
+### Commands ###
+Any service_type is able to execute arbitrary commands via the shell by using the `commands` key. You can avoid providing a `service_type` if all you want is a service wrapper for a set of commands.
+
+The `commands` list optionally takes a string, or map containing a context providing more customization.
+```
+services:
+  my-service:
+    steps:
+      build:
+        commands:
+          - docker build -f Dockerfile -t my-image .
+      test:
+        commands:
+          - context:
+              # interpolate all commands in this context using the given template
+              template: '/bin/sh -c "%s"'
+              # join all commands in this context using the given string
+              join: ' && '
+              # run all commands in this context in the provided docker context
+              docker:
+                image: my-image
+                options:
+                  env:
+                    - MY_ENV_VAR
+                  volume:
+                    - $HOME/.ssh:/root/.ssh/
+            commands:
+              - echo 'Hi I'm running in a container!'
+              - echo 'Me too!'
+
+# final command:
+# docker run -it --env=MY_ENV_VAR --volume=$HOME/.ssh:/root/.ssh my-image /bin/sh -c "echo 'Hi I'm running in a container!' && echo 'Me too!'"
+```
+
 ### Config File Management ###
-Ultimately, Servicer runs with one configuration file that is printed each time it runs. The heart of this is `services.yaml`. For convenience, `extends` and `includes` are two tools that can be used to merge other config files into `services.yaml`.
+Ultimately, Servicer runs with one compiled configuration file (this can be printed by running `servicer --show_config`). The heart of this is `services.yaml`. For convenience, `extends` and `includes` are two tools that can be used to merge other config files into `services.yaml`.
 
 The `extends` key allows you to inherit from another YAML file. The structure of each file will be deep-merged, with values in the extending file overwriting values in the extended file. Lists are not merged, and will be completely overwritten.
 
