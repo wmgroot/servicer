@@ -26,9 +26,10 @@ setup(
     keywords = 'ci cd automation environment service',
     license = 'BSD3',
     long_description = read('README.md'),
+    long_description_content_type='text/markdown',
     name = 'servicer',
     packages = find_packages(),
     python_requires = '>=3.5',
     url = 'https://github.com/wmgroot/servicer',
-    version = '0.11.0',
+    version = '0.11.1',
 )

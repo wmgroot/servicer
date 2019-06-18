@@ -732,7 +732,11 @@ class Servicer():
 
                         if 'docker' in c['context']:
                             docker_context = c['context']['docker']
-                            docker_command = 'docker run -it'
+                            docker_command = 'docker %s' % docker_context.get('command', 'run')
+
+                            flags = docker_context.get('flags', [])
+                            if flags:
+                                docker_command += ' -%s' % ''.join(flags)
 
                             for key in docker_context.get('options', {}):
                                 if not isinstance(docker_context['options'][key], list):
