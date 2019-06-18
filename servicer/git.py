@@ -75,6 +75,9 @@ class Git():
 
     def set_config(self, config=None):
         for key, value in config.items():
+            if not value:
+                continue
+
             result = self.run('git config %s' % key)
             if not result['stdout'].strip():
                 self.run('git config %s "%s"' % (key, value))

@@ -234,11 +234,11 @@ services:
           - context:
               # interpolate all commands in this context using the given template
               template: '/bin/sh -c "%s"'
-              # join all commands in this context using the given string
-              join: ' && '
               # run all commands in this context in the provided docker context
               docker:
                 image: my-image
+                name: # defaults to a random string
+                command: /bin/sh -c 'while sleep 5; do :; done'
                 options:
                   env:
                     - MY_ENV_VAR
@@ -248,8 +248,12 @@ services:
               - echo 'Hi I'm running in a container!'
               - echo 'Me too!'
 
-# final command:
-# docker run -it --env=MY_ENV_VAR --volume=$HOME/.ssh:/root/.ssh my-image /bin/sh -c "echo 'Hi I'm running in a container!' && echo 'Me too!'"
+# final commands:
+# docker run -d --env=MY_ENV_VAR --volume=$HOME/.ssh:/root/.ssh --name=H6GHGiXYjMwbAWEw my-image /bin/sh -c 'while sleep 5; do :; done'
+# docker exec H6GHGiXYjMwbAWEw /bin/sh -c "echo 'Hi I'm running in a container!'"
+# docker exec H6GHGiXYjMwbAWEw /bin/sh -c "echo 'Me too!'"
+# docker stop H6GHGiXYjMwbAWEw
+# docker rm H6GHGiXYjMwbAWEw
 ```
 
 ### Config File Management ###

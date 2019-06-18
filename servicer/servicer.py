@@ -8,6 +8,7 @@ import yaml
 import re
 import copy
 import imp
+import random
 from datetime import datetime
 
 from .config_loader import ConfigLoader
@@ -732,25 +733,37 @@ class Servicer():
 
                         if 'docker' in c['context']:
                             docker_context = c['context']['docker']
-                            docker_command = 'docker %s' % docker_context.get('command', 'run')
+                            docker_command = 'docker %s' % docker_context.get('docker_cmd', 'run')
 
-                            flags = docker_context.get('flags', [])
+                            flags = docker_context.get('flags', ['d'])
                             if flags:
                                 docker_command += ' -%s' % ''.join(flags)
 
-                            for key in docker_context.get('options', {}):
-                                if not isinstance(docker_context['options'][key], list):
-                                    docker_context['options'][key] = [docker_context['options'][key]]
+                            options = docker_context.get('options', {})
+                            if 'name' not in options:
+                                # options['name'] = ''.join(random.choice(''.lower) for x in range(16))
+                                options['name'] = ''.join(random.choice('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz') for x in range(16))
 
-                                for value in docker_context['options'][key]:
+                            for key in options:
+                                if not isinstance(options[key], list):
+                                    options[key] = [options[key]]
+
+                                for value in options[key]:
                                     arg_value = value
-                                    if isinstance(value, dict) and 'from' in value and 'to' in value:
-                                        arg_value = '%s:%s' % (value['from'], value['to'])
                                     docker_command += ' --%s=%s' % (key, arg_value)
 
-                            docker_command += ' %s' % c['context']['docker']['image']
+                            docker_command += ' %s' % docker_context['image']
 
-                            context_commands = ['%s %s' % (docker_command, _c) for _c in c['commands']]
+                            if 'command' in docker_context:
+                                docker_command += ' %s' % docker_context['command']
+
+                            context_commands = [docker_command]
+
+                            for _c in c['commands']:
+                                context_commands.append('docker exec %s %s' % (options['name'][0], _c))
+                            # context_commands = ['%s %s' % (docker_command, _c) for _c in c['commands']]
+                            context_commands.append('docker stop %s' % options['name'][0])
+                            context_commands.append('docker rm %s' % options['name'][0])
 
                     for cmd in context_commands:
                         self.run_command(cmd)
