@@ -48,6 +48,15 @@ services:
             - type: generate_pypi_config
             - type: upload
 
+  image-debian:
+    includes:
+      path: docker_image.yaml
+      params:
+        registry: wmgroot/${PROJECT_NAME}-debian
+        dockerfile: docker/Dockerfile-debian
+        docker_context_path: .
+        image: wmgroot/${PROJECT_NAME}-debian
+
   image-alpine:
     includes:
       path: docker_image.yaml
