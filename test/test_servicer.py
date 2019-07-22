@@ -65,7 +65,7 @@ class LoadEnvFileTest(ServicerTest):
             mock_open.assert_not_called()
 
     def test_valid_env_file_path(self):
-        with mock.patch('yaml.load', create=True) as mock_yaml_load:
+        with mock.patch('ruamel.yaml.load', create=True) as mock_yaml_load:
             with mock.patch('builtins.open', create=True) as mock_open:
                 with mock.patch('os.path.exists', create=True) as mock_os_path_exists:
                     mock_yaml_load.return_value = {'FOO': 'BAR'}

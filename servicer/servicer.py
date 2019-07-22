@@ -4,7 +4,7 @@ import importlib
 import pkg_resources
 import json
 import argparse
-import yaml
+from ruamel import yaml
 import re
 import copy
 import imp
@@ -89,11 +89,12 @@ class Servicer():
         parser = argparse.ArgumentParser(description='Process deployment options.')
 
         parser.add_argument('-g', '--generate_ci', action='store_true', help='generate a ci config file, do not run any deploy options')
-        parser.add_argument('-s', '--service', help='deploy only the provided service')
+        parser.add_argument('-s', '--service', help='execute only the provided service')
+        parser.add_argument('--ss', '--service_step', help='execute only the provided service-step')
         parser.add_argument('-f', '--services_file', default='services.yaml', help='custom path to your services config file (default is services.yaml)')
         parser.add_argument('-p', '--servicer_config_path', default='%s/.servicer' % os.getcwd(), help='path to your servicer directory (default is ./.servicer)')
         parser.add_argument('--env_file_paths', default='%s/.servicer/.env.yaml:%s/.servicer/.env.yaml' % (os.getenv('HOME'), os.getcwd()), help='paths to your local .env files, colon-separated')
-        parser.add_argument('--step', help='perform the comma-separated build steps, defaults to all steps')
+        parser.add_argument('--step', help='execute only the comma-separated build steps, defaults to all steps')
         parser.add_argument('-c', '--show_config', action='store_true', help='prints the interpolated config file')
         parser.add_argument('-u', '--no_ignore_unchanged', '--no_cd', action='store_true', help='disables ignoring services through change detection')
         parser.add_argument('--no_tag', action='store_true', help='disables build tagging')
@@ -367,6 +368,11 @@ class Servicer():
         if 'services' in self.config:
             for name, service in self.config['services'].items():
                 service['name'] = name
+
+        if 'service_step' in self.config['args']:
+            ss = self.config['args']['service_step'].split(':')
+            self.config['args']['service'] = ss[0]
+            self.config['args']['step'] = ss[1]
 
         active_services = []
         if 'service' in self.config['args'] and self.config['args']['service']:

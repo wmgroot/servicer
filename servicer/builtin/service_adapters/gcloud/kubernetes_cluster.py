@@ -2,7 +2,7 @@ from .gcloud_service import GCloudService
 
 import os
 import time
-import yaml
+from ruamel import yaml
 import json
 
 class Service(GCloudService):
