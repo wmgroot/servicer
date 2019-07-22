@@ -20,7 +20,7 @@ setup(
     },
     include_package_data = True,
     install_requires = [
-        'PyYAML==3.13',
+        'ruamel.yaml==0.15.100',
         'requests==2.20.1',
     ],
     keywords = 'ci cd automation environment service',
@@ -31,5 +31,5 @@ setup(
     packages = find_packages(),
     python_requires = '>=3.5',
     url = 'https://github.com/wmgroot/servicer',
-    version = '0.11.4',
+    version = '0.11.5',
 )

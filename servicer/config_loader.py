@@ -1,6 +1,6 @@
 import os
 import json
-import yaml
+from ruamel import yaml
 
 from .token_interpolator import TokenInterpolator
 

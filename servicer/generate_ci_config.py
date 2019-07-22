@@ -118,7 +118,7 @@ def generate_bitbucket_pipeline(steps, pipeline=[]):
 
 
 def write_yaml(data, file_path):
-    import yaml
+    from ruamel import yaml
 
     with open(file_path, 'w') as outfile:
         yaml.dump(data, outfile, default_flow_style=False)
