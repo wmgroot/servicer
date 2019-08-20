@@ -55,7 +55,7 @@ class DependencyGrapher():
         depends_on.extend(self.get_depends_on(service['steps'][step_name]))
 
         # default step based dependencies
-        if self.config['graph']['implicit-step-dependencies']:
+        if self.config['graph']['implicit-step-dependencies'] and step_name in self.step_order:
             step_index = self.step_order.index(step_name)
             while step_index > 0:
                 step_index -= 1

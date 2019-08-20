@@ -89,8 +89,11 @@ steps:
   - name: unit_test
   - name: integration_test
   - name: deploy
-      config:
-        requires_service_environment: true
+    config:
+      requires_service_environment: true    # will only be executed within a service environment (based on environment mappings)
+  - name: cleanup
+    config:
+      auxiliary: true                       # can only be explicitly executed (using the --step argument)
 ...
 ```
 The execution of steps is done at a project-wide scale. Given the above definition, during the first step, `credentials`, Servicer will look at every service and execute its `credentials` step, if one is provided. When the `credentials` step is complete, Servicer will being the `build` step, look at every service, and execute its `build` step, if one is provided. Servicer continues doing this until all of the `steps` have been completed.

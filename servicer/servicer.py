@@ -124,7 +124,7 @@ class Servicer():
         if os.path.exists(path):
             self.logger.log('(.env.yaml) found, including these arguments:')
 
-            yaml_dict = yaml.load(open(path))
+            yaml_dict = yaml.load(open(path), Loader=yaml.Loader)
             for key, value in yaml_dict.items():
                 os.environ[key] = value
                 self.logger.log(key)
@@ -618,6 +618,10 @@ class Servicer():
                     continue
 
                 self.steps[step['name']] = step
+
+                if 'config' in step and 'auxiliary' in step['config'] and step['config']['auxiliary']:
+                    continue
+
                 self.step_order.append(step['name'])
 
         if 'step' in self.config['args'] and self.config['args']['step']:

@@ -34,7 +34,7 @@ class ConfigLoader():
 
     # recursively load configs, overwriting base config values
     def load_extended_config(self, config_path=None, config=None):
-        merge_config = yaml.load(open(config_path))
+        merge_config = yaml.load(open(config_path), Loader=yaml.Loader)
 
         if 'extends' in merge_config:
             config_path_pieces = config_path.split('/')
@@ -72,6 +72,8 @@ class ConfigLoader():
                 path = include['path']
                 params.update(include['params'])
 
+            self.token_interpolator.interpolate_tokens(params, params, ignore_missing_key=True, ignore_default=True)
+
             config_path_pieces = config_path.split('/')
             include_path = '%s/%s' % ('/'.join(config_path_pieces[:-1]), path)
 
@@ -79,6 +81,8 @@ class ConfigLoader():
 
             include_config = {}
             self.load_extended_config(config_path=include_path, config=include_config)
+            # TODO: is this good?
+            # self.token_interpolator.interpolate_tokens(include_config, params, ignore_missing_key=True, ignore_default=True)
             self.merge_included_configs(config_path=self.servicer_config_file_path, config=include_config, params=params)
 
             if params:
@@ -89,7 +93,7 @@ class ConfigLoader():
 
     def merge_defaults(self, config={}):
         default_config_path = '%s/builtin/defaults.yaml' % self.module_path
-        default_config = yaml.load(open(default_config_path))
+        default_config = yaml.load(open(default_config_path), Loader=yaml.Loader)
         self.merge_config(default_config, config)
 
         return default_config
