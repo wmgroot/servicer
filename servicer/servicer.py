@@ -167,20 +167,23 @@ class Servicer():
 
     def determine_service_environment(self):
         self.logger.log()
-        self.service_environment = os.getenv('SERVICE_ENVIRONMENT') or self.get_service_environment(os.getenv('BRANCH', 'local'))
+        branch = os.getenv('BRANCH', 'local')
+        tag = os.getenv('TAG')
+        self.service_environment = os.getenv('SERVICE_ENVIRONMENT') or self.get_service_environment(branch, tag)
 
         self.logger.log('branch: %s' % os.getenv('BRANCH'))
+        self.logger.log('tag: %s' % tag)
         self.logger.log('service environment: %s' % self.service_environment)
         if self.service_environment:
             os.environ['SERVICE_ENVIRONMENT'] = self.service_environment
 
-    def get_service_environment(self, branch):
+    def get_service_environment(self, branch, tag):
         service_environment = None
         if 'environment' not in self.config or 'mappings' not in self.config['environment']:
             return service_environment
 
         mappings = self.config['environment']['mappings']
-        service_environment, self.service_environment_config = self.map_service_environment(branch, mappings)
+        service_environment, self.service_environment_config = self.map_service_environment(branch, mappings, tag)
 
         if service_environment:
             formatter = self.config['environment'].get('formatter')
@@ -205,20 +208,15 @@ class Servicer():
 
         return service_environment
 
-    def map_service_environment(self, branch, mappings=[]):
+    def map_service_environment(self, branch, mappings=[], tag=None):
         for m in mappings:
-            if 'branch' in m:
-                if m['branch'].startswith('/') and m['branch'].endswith('/'):
-                    regex = m['branch'][1:-1]
-                else:
-                    regex = '^%s$' % m['branch'].replace('*', '.*')
+            if tag and 'tag' in m:
+                if self.glob_regex_match(m['tag'], tag):
+                    return m.get('environment', tag), m
 
-                result = re.match(regex, branch)
-                if result:
+            if branch and 'branch' in m:
+                if self.glob_regex_match(m['branch'], branch):
                     return m.get('environment', branch), m
-            elif 'tag' in m:
-                # TODO: support tag mapping
-                pass
 
         return None, None
 
@@ -673,9 +671,20 @@ class Servicer():
             self.logger.log(json.dumps(service, indent=4, sort_keys=True, default=str), level='debug')
             self.logger.log(level='debug')
 
-            if 'config' in step and 'requires_service_environment' in step['config']:
-                if step['config']['requires_service_environment'] and self.service_environment == None:
-                    self.logger.log('skipping, no valid service environment found for step: %s' % step_name)
+            if 'config' in step:
+                if 'requires_service_environment' in step['config']:
+                    if step['config']['requires_service_environment'] and self.service_environment == None:
+                        self.logger.log('skipping, no valid service environment found for step: %s' % step_name)
+                        continue
+
+                if 'service_environment' in step['config']:
+                    if not self.glob_regex_match(step['config']['service_environment'], self.service_environment):
+                        self.logger.log('skipping, no valid service environment found for step: %s' % step_name)
+                        continue
+
+            if 'service_environment' in service:
+                if not self.glob_regex_match(service['service_environment'], self.service_environment):
+                    self.logger.log('skipping, no valid service environment found for service: %s' % service_name)
                     continue
 
             self.run_service_step(service, service_step)
@@ -790,6 +799,33 @@ class Servicer():
             return
 
         return self.run(command)
+
+    def glob_regex_match(self, match, text):
+        if text == None:
+            return None
+
+        if not isinstance(match, list):
+            match = [match]
+
+        for m in match:
+            self.logger.log('glob/regex check: %s' % m, level='debug')
+            if m.startswith('/') and m.endswith('/'):
+                regex = m[1:-1]
+            else:
+                regex = m
+                # escape existing regex metacharacters
+                for ch in '[]\^$.|?+()':
+                    regex = regex.replace(ch, '\%s' % ch)
+
+                # convert wildcard character into 0 or more any character match
+                regex = '^%s$' % regex.replace('*', '.*')
+
+            result = re.match(regex, text)
+            if result:
+                self.logger.log('matched! %s' % text, level='debug')
+                return result
+
+        return None
 
     def print_title(self, message='', border='----'):
         inner_text = ' %s ' % message
