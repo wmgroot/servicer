@@ -91,15 +91,15 @@ class GetServiceEnvironmentTest(ServicerTest):
         }
 
     def test_custom_mappings(self):
-        result = self.servicer.get_service_environment('my-branch')
-        self.servicer.map_service_environment.assert_called_with('my-branch', self.servicer.config['environment']['mappings'])
+        result = self.servicer.get_service_environment('my-branch', 'my-tag')
+        self.servicer.map_service_environment.assert_called_with('my-branch', self.servicer.config['environment']['mappings'], 'my-tag')
         self.assertEqual(result, None)
 
     def test_matched_environment(self):
         self.servicer.map_service_environment.return_value = ('my_wacky/environment', { 'branch': 'my_wacky/environment' })
 
-        result = self.servicer.get_service_environment('my-branch')
-        self.servicer.map_service_environment.assert_called_with('my-branch', mock.ANY)
+        result = self.servicer.get_service_environment('my-branch', 'my-tag')
+        self.servicer.map_service_environment.assert_called_with('my-branch', mock.ANY, 'my-tag')
         self.assertEqual(result, 'my-wacky-environment')
 
 class MapServiceEnvironmentTest(ServicerTest):
@@ -150,6 +150,23 @@ class MapServiceEnvironmentTest(ServicerTest):
             { 'branch': 'env-*' },
         ])
         self.assertEqual(result, ('qa', { 'branch': '*-qa', 'environment': 'qa' }))
+
+    def test_tag_match(self):
+        result = self.servicer.map_service_environment('env-my-branch-qa', [
+            { 'tag': 'foo', 'environment': 'production' },
+        ], 'foo')
+        self.assertEqual(result, ('production', { 'tag': 'foo', 'environment': 'production' }))
+
+    def test_multiple_match_single_mapping(self):
+        result = self.servicer.map_service_environment('env-my-branch-qa', [{
+            'tag': [
+                'foo',
+                'bar',
+                'baz',
+            ],
+            'environment': 'production',
+        }], 'bar')
+        self.assertEqual(result, ('production', { 'tag': ['foo', 'bar', 'baz'], 'environment': 'production' }))
 
 class RunServiceStepTest(ServicerTest):
     def setUp(self):
@@ -261,3 +278,52 @@ class RunServiceStepTest(ServicerTest):
             mock.call(['pre-command1.sh', 'rm -rf treeeeee xD']),
             mock.call(['cowsay moo', 'yes | lolcat']),
         ])
+
+class BlobRegexMatchTest(ServicerTest):
+    def test_matches_same_words(self):
+        result = self.servicer.glob_regex_match('pen', 'pen')
+        self.assertEqual(result.group(0), 'pen')
+
+    def test_does_not_match_different_words(self):
+        result = self.servicer.glob_regex_match('apple', 'pineapple')
+        self.assertEqual(result, None)
+
+    def test_matches_outside_globs(self):
+        result = self.servicer.glob_regex_match('*apple', 'pineapple')
+        self.assertEqual(result.group(0), 'pineapple')
+
+    def test_matches_inside_globs(self):
+        result = self.servicer.glob_regex_match('pen*apple', 'penpineapple')
+        self.assertEqual(result.group(0), 'penpineapple')
+
+    def test_matches_many_globs(self):
+        result = self.servicer.glob_regex_match('*appleapple*', 'penpineappleapplepen')
+        self.assertEqual(result.group(0), 'penpineappleapplepen')
+
+    def test_handles_globs_with_regex_metacharacters(self):
+        result = self.servicer.glob_regex_match('*.*.*', 'apple')
+        self.assertEqual(result, None)
+
+    def test_fails_globs(self):
+        result = self.servicer.glob_regex_match('*appleapple*', 'penpineapplepen')
+        self.assertEqual(result, None)
+
+    def test_matches_regexes(self):
+        result = self.servicer.glob_regex_match('/\w+\d+three/', 'one2three')
+        self.assertEqual(result.group(0), 'one2three')
+
+    def test_fails_regexes(self):
+        result = self.servicer.glob_regex_match('/\w+\d+three/', 'onethree')
+        self.assertEqual(result, None)
+
+    def test_matches_any(self):
+        result = self.servicer.glob_regex_match(['apple', 'pen*apple'], 'penpineapple')
+        self.assertEqual(result.group(0), 'penpineapple')
+
+    def test_matches_nothing(self):
+        result = self.servicer.glob_regex_match(['apple', 'pineapple'], 'penpineapple')
+        self.assertEqual(result, None)
+
+    def test_matches_nothing(self):
+        result = self.servicer.glob_regex_match('apple', None)
+        self.assertEqual(result, None)

@@ -1,27 +1,37 @@
 # Servicer #
 
 Servicer is a configuration-based CI automation framework that runs inside popular CI platforms, such as Bitbucket Pipelines, Jenkins, and CircleCI.
+Servicer may be the right tool to use if you find yourself in any these situations:
+* Writing a lot of Bash to augment your CI/CD jobs.
+* Have dependent services building from the same repository (common in mono-repos).
+* Want to speed up your CI job times by building services in parallel, or avoiding building services that have not changed.
 
 Core Features:
-* Run and debug your CI jobs locally.
-* Map your branches to independent service environments, allowing you to use the same process to deploy production, testing, and development environments.
-* Configure intelligent Change Detection, to only build the services and dependencies you need for the changes made (great for monorepos!).
+* Run and debug your CI jobs locally (very helpful for isolating or testing build issues before you deploy).
+* CI provider agnostic configuration (make your build process portable between multiple CI providers).
+* Map your branches and tags to independent service environments, allowing you to use an identical process to deploy production, testing, and development environments.
+* Interpolate dynamic values that change from environment to environment, allowing you to re-use the same configuration for your environments.
+* Configure intelligent Change Detection, to only build the services and dependencies you need for the changes made (great for mono-repos!).
 
-Servicer uses the *services* and *steps* you define in `.servicer/services.yaml`. A servicer execution will roughly do the following:
+Servicer executes a set of service-steps you define in `.servicer/services.yaml`. A servicer CI job will roughly do the following:
 1. Normalize the current CI environment (by standardizing environment variables).
-2. Construct the complete servicer configuration (interpolating dynamic value tokens).
-3. Determine which services can be ignored by Change Detection.
-4. Build a dependency graph of remaining service-steps.
-5. Execute each service-step in the order determined by the dependency graph.
+2. Determine the current Service Environment, if it exists.
+3. Construct the complete servicer configuration (interpolating dynamic value tokens).
+4. Determine which services can be ignored by Change Detection.
+5. Build a dependency graph of remaining service-steps.
+6. Execute each service-step in the order determined by the dependency graph, if it is appropriate for the current Service Environment.
+
+Contributing
+Servicer is an open-source project. Feel free to fork and open a PR at any time. Each PR should have an associated Issue linked for reference.
 
 ## Separation of Concerns ##
 Servicer is separated into three main components: adapters, services, and the project environment.
 
-*Adapters* allow Servicer to use or interact with external systems, like Google Cloud Platform, GitHub, and Jenkins. Three kinds of adapters exist: CI adapters, auth adapters, and service adapters. These are written as reusable python modules, and are located in `servicer/builtin`.
+_Adapters_ are interfaces that allow Servicer to use or interact with external systems, like Google Cloud Platform, GitHub, Jenkins, Docker, etc. Three kinds of adapters exist: CI adapters (for CI providers), auth adapters (to manage credentials), and service adapters (for everything else). These are written as reusable python modules, and are located in `servicer/builtin`.
 
- *Services* are the building blocks of your project. Services are defined in the `.servicer/services.yaml` file in your project, and these definitions include the configuration and commands needed to build, test and deploy each service. Additionally, dependencies may be defined to automate the order services and steps are executed in.
+_Configuration_ is the primary building block of your project. Services are defined in the `.servicer/services.yaml` file in your project, and these definitions include the configuration and commands needed to build, test and deploy each service. Additionally, dependencies may be defined to automate the order service-steps are executed in.
 
-The *project environment* should contain environment variables for holding credentials and other secrets that should not be committed to source control. These can be configured on your CI tool, or, if you are running Servicer locally, from a `.servicer/*.env.yaml` file.
+Your _project environment_ should contain environment variables for holding credentials and other secrets that should not be committed to source control. These can be configured on your CI tool, or, if you are running Servicer locally, from a `.servicer/*.env.yaml` file.
 
 ## Using Servicer ##
 For the simplest use case, use the command below. With it, Servicer will execute every step for every service you've defined in `.servicer/services.yaml`.
@@ -36,6 +46,10 @@ Steps, like build and unit_test, can also be specified.
 ```
 servicer --step=build,unit_test
 ```
+When combined, you can execute a single service-step:
+```
+servicer --service=my_docker_image --step=build
+```
 These commands can be run locally or in the context of a CI job.
 
 By default, all service-step dependencies will also be executed. If you will like to disable this behavior, use the `--ignore_dependencies` flag.
@@ -47,9 +61,9 @@ To set the desired logging level (debug, info, warn, error), use the `--log_leve
 For a complete list of flags and options that can be provided to the `servicer` command, please see `servicer --help`.
 
 ## Configuration ##
-`.servicer/services.yaml` must be present at the root of your project. `servicer/builtin/defaults.yaml` (https://github.com/wmgroot/servicer/blob/master/servicer/builtin/defaults.yaml) contains default values and descriptions of the values you can provide in `.servicer/services.yaml`.
+By default, Servicer will look for `.servicer/services.yaml` at the root of your project. `servicer/builtin/defaults.yaml` (https://github.com/wmgroot/servicer/blob/master/servicer/builtin/defaults.yaml) contains default values and descriptions of the values you can provide in `.servicer/services.yaml`.
 
-Within this *Configuration* section of the README, consider each of these subsections to compose the `services.yaml` on one project.
+Within this section of the README, consider each of these subsections to compose the `services.yaml` on one project.
 
 ### Environment ###
 The `environment` section of `services.yaml` will let you define environment variables that you're ok with existing in source control. Additionally, you can control the branch -> service_environment settings, allowing you to change the defaults. Consider the example below.
@@ -59,7 +73,9 @@ environment:
   # In this example, SERVICE_ENVIRONMENT will be `production` if the branch is `master`.
   # SERVICE_ENVIRONMENT will be `develop` if the branch is `develop`.
   # Otherwise, if the branch matches `env-*`, SERVICE_ENVIRONMENT will be the sanitized branch name.
+  # If the CI provider supports tag based builds, servicer will also set the SERVICE_ENVIRONMENT if a version tag is found.
   mappings:
+    - tag: '*.*.*'             # match a version tag -> 1.2.3
     - branch: master
       environment: production  # master -> production
     - branch: develop          # develop -> develop
@@ -71,7 +87,7 @@ environment:
     PROJECT_NAME: ${PRE_DEFINED_ENV_VAR}-plus-some
 ...
 ```
-Servicer requires several environment variables to be configured which control the parameters of each service. Some of these environment variables will be automatically pulled from your CI environment and standardized by the CI Adapter it is using. Check the relevant adapter file in `servicer/builtin/ci_adapters`. The remaining variables may be specific to each service adapter, and will need to be configured in your CI environment, or defined in the `environment` section of `services.yaml`.
+Servicer requires several environment variables to be configured which control the parameters of each service. Some of these environment variables will be automatically pulled from your CI environment and standardized by the CI Adapter it is using. Check the relevant adapter file in `servicer/builtin/ci_adapters`. The remaining variables may be specific to each service adapter, and will need to be configured in your CI environment, or defined in the `environment` section of `services.yaml`, or be provided locally in your `.servicer/.env.yaml` file.
 
 #### CI Adapters ####
 In order to standardize the environment Servicer runs in, a CI Adapter is used. Each CIAdapter is a python class that populates an instance variable called `env_map`, which contains key value pairs mapping environment variable names to their standardized Servicer equivalents.
@@ -79,39 +95,37 @@ In order to standardize the environment Servicer runs in, a CI Adapter is used. 
 Servicer provides default CI Adapters for your convenience. Please explore the `servicer/builtin/ci_adapters` directory to see what's available for each CI provider. In order to customize servicer to your needs, you can create your own CI Adapters in your project. By default, servicer will prefer CI Adapters found in the `.servicer/ci_adapters` directory of your project. See the Advanced Servicer Use Cases for more information on adapter overrides.
 
 ### Steps ###
-_Steps_ are actions that Servicer will execute to accomplish its work on the services. Steps are declared project-wide in `services.yaml`. In the example below, several steps are defined.
+Steps are sets of actions that share some configuration between services. For example, the 'deploy' step may only be executed when a Service Environment is present. Steps are declared project-wide in `services.yaml`. In the example below, several steps are defined.
 
 ```
 ...
 steps:
-  - name: credentials
   - name: build
-  - name: unit_test
-  - name: integration_test
+  - name: test
   - name: deploy
     config:
-      requires_service_environment: true    # will only be executed within a service environment (based on environment mappings)
+      service_environment: '*'              # will only be executed within a service environment (based on environment mappings)
   - name: cleanup
     config:
       auxiliary: true                       # can only be explicitly executed (using the --step argument)
 ...
 ```
-The execution of steps is done at a project-wide scale. Given the above definition, during the first step, `credentials`, Servicer will look at every service and execute its `credentials` step, if one is provided. When the `credentials` step is complete, Servicer will being the `build` step, look at every service, and execute its `build` step, if one is provided. Servicer continues doing this until all of the `steps` have been completed.
+Steps are available for any service to implement. Given the above definition, during the first step, `build`, Servicer will look at every service and include its `build` step as a service-step in the complete dependency graph, if it exists. These service-steps will later be executed in the correct order.
 
-Steps can be configured to be disregarded unless they are being run within an environment that matches one of the mappings defined in `environment` above. Given the environment defined above, `deploy` will be disregarded unless Servicer is running on the `master`, `develop`, or a `env-*` branch.
+Steps can be configured to be disregarded unless they are being run within an environment that matches one of the mappings defined in `environment` above. Given the environment defined above, any `deploy` service-steps will be disregarded unless Servicer is running in a matching Service Environment (any Service Environment will match the `'*'`). This syntax accepts glob and regex notations, and multiple matchers can be provided as a list. If there are multiple matchers, any match will allow execution of that particular service-step.
 
 ### Services ###
-*Services* are things that Servicer should handle, like portions of your project or pieces of third party software that your CI pipeline needs to work with. Servicer uses *service adapters* to work with these various services. Builtin service adapters automatically available through servicer are defined in `servicer/builtin/service_adapters`. You can also add your own service adapter within your project by adding it to your `.servicer/service_adapters` directory.
+*Services* are abstract containers for pieces of your project. They can be a set of commands, or utilize a python module that wraps an integration with a 3rd party tool. Builtin service adapters automatically available through servicer are defined in `servicer/builtin/service_adapters`. You can also add your own service adapter within your project by adding it to your `.servicer/service_adapters` directory. However, you may decide to use Servicer as a command orchestrator, without leveraging any service adapters, and that is perfectly fine.
 
 The service below builds a Docker image, and pushes/deploys it to the Google Container Registry.
 ```
 ...
 services:
-  my_docker_image:              # User chosen name to identify this service
+  my_docker_image:                     # User chosen name to uniquely identify this service
     providers:
-      - gcloud                  # Initializes the given provider entry before running steps
-    service_type: gcloud/docker_image  # Maps to the corresponding service adapter defined in servicer/builtin/service_adapters/
-    steps:                      # Steps defined here must match a step defined in the `steps` list discussed above
+      - gcloud                         # Initializes the given provider entry before running steps, useful for re-usable Auth
+    service_type: gcloud/docker_image  # Optional, maps to the corresponding service adapter defined in servicer/builtin/service_adapters/
+    steps:                             # Steps defined here must match a step defined in the `steps` list explained above
       build:
         config:
           # All config defined here is passed to the __init__ function of the corresponding service adapter.
@@ -121,7 +135,7 @@ services:
                 image: demo-image
                 dockerfile: Dockerfile
       deploy:
-        commands:
+        commands:   # Commands are executed before the chosen service adapter is executed
           - docker login -u _json_key -p "$(cat /path/to/keyfile.json)" https://us.gcr.io/my-gcp-project
         config:
           # All config defined here is passed to the __init__ function of the corresponding service adapter.
@@ -141,90 +155,40 @@ Here is a service that builds a python package, and deploys it to Artifactory.
 ...
   my_python_package:
     service_type: package/pypi
-    depends_on:
-      - artifactory-pypi
-      - pypi-credentials
+
     steps:
       build:
-        commands:    # These are standard shell commands Servicer will execute
+        commands:
           - rm -rf python_example/dist
           - python setup.py sdist
         config:
-          # The service adapter handles things nested at this level and deeper
           package_info:
             package_file_path: setup.py
-          steps:
+          # service adapter tasks map to functions available within the service adapter
+          tasks:
             - type: read_package_info
       deploy:
-          config:
-            package_info:
-              package_file_path: setup.py
-            steps:
-              - type: upload
-                args:
-                  server: artifactory
-                  path: dist/*.tar.gz
-...
-```
-Using `depends_on` defines the other services your service depends on. Servicer will execute the dependee's matching step before executing the dependor's current step. In this case, Servicer will first execute the build steps for the `artifactory-pypi` and `pypi-credentials` services, which were created by the user and are not included here, before executing the `build` step for `my_python_package`.
-
-The `depends_on` key may also be used at the step level of your configuration. Below you can see that the `deploy` step for our `api-django` service contains a dependency on `postgres:deploy`. Servicer will ensure that the service-step `api-django:deploy` is executed after the service-step `postgres:deploy`.
-
-A wildcard may also be provided in the place of a service name. For example, `*:test`. This means that the given service or service-step depends on the completion of all other services' `test` step.
-```
-...
-  postgres:
-    provider: aws
-    service_type: rds_instance
-
-    steps:
-      deploy:
-        config:
-          rds_params:
-            AllocatedStorage: 256
-            DBInstanceClass: db.m4.large
-            DBInstanceIdentifier: ${PROJECT_NAME}-${SERVICE_ENVIRONMENT}
-            DBName: ${DATABASE_NAME}
-            Engine: postgres
-            MasterUsername: ${DATABASE_USERNAME}
-            MasterUserPassword: ${DATABASE_PASSWORD}
-            PubliclyAccessible: true
-            StorageEncrypted: true
-            StorageType: gp2 # General purpose SSD
-            Tags:
-              - Key: project
-                Value: ${PROJECT_NAME}
-            VpcSecurityGroupIds:
-              - sg-12345678 # default
-
-  api-django:
-    docker: true
-    provider: gcloud
-    service_type: kube_cluster
-
-    steps:
-      build:
-        commands:
-          - docker build . -t ${PROJECT_NAME}-api
-      deploy:
         depends_on:
-          - postgres:deploy
-        commands:
-          - ./util/install-docker-compose.sh
+          - pypi-credentials:credentials
+
         config:
-          cluster_name: my_gke_cluster
-          project: my_gcloud_project
-          compute_zone: us-central1-f
-          wait_for_pending: true
-          cluster_configs:
-            - ...    # kubernetes config goes here
+          package_info:
+            package_file_path: setup.py
+          tasks:
+            - type: upload
+              args:
+                server: artifactory
+                path: dist/*.tar.gz
+...
 ```
-This concludes the single, long `services.yaml` example above.
+Using `depends_on` gives you control over how Servicer's dependency graph is built. In the above example, Servicer will ensure that the `my_python_package:deploy` service-step is executed after the `pypi-credentials:credentials` service-step. The `my_python_packge:deploy` service-step also has an implicit dependency on the `my_python_packge:build` service-step, because the two service-steps belong to the same service, and the `build` step is defined before the `deploy` step in the steps list above.
+
+A wildcard may also be provided in the place of a service name. For example, `*:test` means that the given service or service-step depends on the completion of all other `test` service-steps.
 
 ### Commands ###
-Any service_type is able to execute arbitrary commands via the shell by using the `commands` key. You can avoid providing a `service_type` if all you want is a service wrapper for a set of commands.
+Any service_type is able to execute arbitrary commands via the shell by using the `commands` key. You can avoid providing a `service_type` if all you want is a service wrapper for a set of commands. The `commands` key will execute commands before a service adapter config, while the `post_commands` key will execute commands after.
 
-The `commands` list optionally takes a string, or map containing a context providing more customization.
+The `commands` list optionally accepts a raw string, or map containing a context providing more customization.
 ```
 services:
   my-service:
@@ -241,7 +205,7 @@ services:
               docker:
                 image: my-image
                 name: # defaults to a random string
-                command: /bin/sh -c 'while sleep 5; do :; done'
+                command: /bin/sh -c 'while sleep 5; do :; done'   # command to start the container with, sleep forever
                 options:
                   env:
                     - MY_ENV_VAR
@@ -324,7 +288,7 @@ services:
     includes: kube-service.yaml
 ```
 
-An optional `params` key may be used for interpolation, allowing for more generic config files. The example below is equivalent to the example above.
+An optional `params` key may be used for interpolation, allowing for re-usable, generic config files. The example below is equivalent to the example above.
 
 ```
 # kube-service.yaml
@@ -376,20 +340,22 @@ SERVICE_ENVIRONMENT: test
 `.env.yaml` can also be defined at `~/.servicer/.env.yaml` to support multi-project defaults. Values in the project level `.env.yaml` will take precedence over values in your user folder.
 
 ## Git Integration ##
-Servicer provides a few handy Git integrations to optimize jobs. By default, git integration is disabled. To enable it, set `git: enabled` to `true`.
+Servicer provides a few handy Git integrations to optimize jobs. By default, git integration is disabled. To enable it, set `git: enabled: true`.
 
 ### Change Detection ###
-Servicer can run `git diff` to determine which services in your project are different between the current commit and either the commit associated with its last successful job, or one passed to Servicer by an environment variable. This second commit is Servicer's _reference point_, and the list presented by `git diff` provides Servicer its change detection.
+Servicer can use a `git diff` to determine which services in your project are different between the current commit and either the commit associated with its last successful job, or one passed to Servicer by an environment variable. This second commit is Servicer's _reference point_, and the list presented by `git diff` provides Servicer its change detection.
 
 By default, Servicer will maintain its own set of git tags that identify commits it should use as reference points. The format of these tags is `servicer-<BRANCH>-<BUILD_DATE>-<BUILD_NUMBER>`. Servicer relies upon the CI framework it is working on (like Jenkins) to provide the `BRANCH` and `BUILD_NUMBER` variables. Alternatively, the `GIT_DIFF_REF` environment variable can be set manually.
 
 Servicer will use the first reference point it can find, and attempts to find it in this order:
 1. The `GIT_DIFF_REF` environment variable, if it’s set and is a valid commit.
-2. The latest servicer git tag matching the current branch, if `git: diff-tagging-enabled` is `true`.
-3. The latest servicer git tag matching any branch, if `git: diff-defaults-to-latest-tag` is `true`.
+2. The latest servicer git tag matching the current branch, if `git: diff-tagging-enabled: true`.
+3. The latest servicer git tag matching any branch, if `git: diff-defaults-to-latest-tag: true`.
+
+Servicer will also attempt to remove any stale tags automatically. Tags present only on deleted branches, or tags that are no longer the latest tag for a branch will be removed.
 
 ### Skipping Steps for Unchanged Services ###
-When using Git integration, Servicer can skip steps for the services that haven't changed except those steps which are dependees. An example of how to employ this is below.
+When using Git integration, Servicer can skip steps for the services that haven't changed (unless those steps are explicit dependencies). Here is an example of configuring this.
 
 ```
 git:
@@ -418,7 +384,7 @@ In this case, Servicer will only execute `my_python_package`'s steps (only `buil
 Supported formats for `watch_paths` and `ignore_paths` are simple text with `*` as a wildcard, and full regexes in the format `/.*/`.
 
 ### Automatic Versioning ###
-_*Warning:* This is an experimental feature. Automatic versioning requires Servicer to make automated commits back to your repository with updated version numbers for package services. This can have unintended side effects with your CI solution unless you know what you're doing._
+_*Warning:* This is an experimental feature. Automatic versioning requires Servicer to make automated commits back to your repository with updated version numbers for package services. This can have unintended side effects with your CI solution unless "you know what you're doing"._
 
 As part of git integration, Servicer can automatically increase the version number of the packages it manages and commit the new version numbers to the repository. When Servicer is being run on a CI pipeline, `ignore-servicer-commits` can be set to true to have servicer inspect the commit authors, and self-terminate if the job was initiated in response to a commit made by Servicer.
 
@@ -459,6 +425,7 @@ services:
       commands:
         - kubectl delete ns ${SERVICE_ENVIRONMENT}
 ```
+The `destroy` step is a magic step that does not need to be defined in your `.servicer/services.yaml`.
 
 ## Advanced Servicer Use Cases ##
 Servicer's core interface with external CI's, cloud provider APIs, etc, exists as a collection of python modules called Adapters. These Adapters can be found in the `builtin` directory of the project, and may be overridden or extended if they do not meet your needs.
