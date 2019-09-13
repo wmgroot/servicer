@@ -72,12 +72,14 @@ class ConfigLoader():
                 path = include['path']
                 params.update(include['params'])
 
+            # TODO: investigate and fix a bug to enable dynamic tokens in include paths
+            # path = self.token_interpolator.replace_tokens(path, params, ignore_missing_key=True, ignore_default=False)
             self.token_interpolator.interpolate_tokens(params, params, ignore_missing_key=True, ignore_default=True)
 
             config_path_pieces = config_path.split('/')
             include_path = '%s/%s' % ('/'.join(config_path_pieces[:-1]), path)
 
-            self.logger.log('Including: %s' % include_path)
+            self.logger.log('Including: %s' % include_path, level='debug')
 
             include_config = {}
             self.load_extended_config(config_path=include_path, config=include_config)
@@ -88,6 +90,8 @@ class ConfigLoader():
             if params:
                 self.token_interpolator.interpolate_tokens(params, params, ignore_missing_key=True, ignore_default=True)
                 self.token_interpolator.interpolate_tokens(include_config, params, ignore_missing_key=True, ignore_default=True)
+
+            # self.logger.log('Included Config: %s' % json.dumps(include_config, indent=2, default=str), level='debug')
 
             self.merge_config(config, include_config)
 
