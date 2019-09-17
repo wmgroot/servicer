@@ -39,16 +39,16 @@ class TokenInterpolator():
 
             replace_value = self.evaluate_token(match, params, ignore_default)
 
-            # allow list replacement, replace entire string value with the list
-            if isinstance(replace_value, list):
+            # allow list/dict replacement, replace entire string value with the list or dict
+            if isinstance(replace_value, list) or isinstance(replace_value, dict):
                 return replace_value
 
-            if replace_value:
+            if replace_value != None and replace_value != '':
                 for ev in escaped_values:
                     if ev in token:
                         token = token.replace(ev, '\%s' % ev)
                 # self.logger.log('replacing token %s -> %s' % (token, replace_value), level='debug')
-                value = re.sub(r'\${%s}' % token, replace_value, value)
+                value = re.sub(r'\${%s}' % token, str(replace_value), value)
 
         return value
 
@@ -66,7 +66,7 @@ class TokenInterpolator():
 
         for p in pieces:
             evaluated = self.evaluate_value(p, params)
-            if evaluated:
+            if evaluated != None and evaluated != '':
                 return evaluated
 
         return None
@@ -79,7 +79,7 @@ class TokenInterpolator():
         path_pieces = value.split('.')
         if len(path_pieces) > 0:
             path_value = self.dict_get_path(_dict=params, path=path_pieces, ignore_missing_key=True)
-            if path_value:
+            if path_value != None and path_value != '':
                 result = path_value
 
         return result
