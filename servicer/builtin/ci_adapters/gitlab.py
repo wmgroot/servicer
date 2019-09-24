@@ -9,8 +9,8 @@ class CIAdapter(BaseCIAdapter):
 
         # https://docs.gitlab.com/ee/ci/variables/predefined_variables.html
         self.env_map['CI_COMMIT_REF_NAME'] = 'BRANCH'
-        self.env_map['CI_JOB_ID'] = 'BUILD_NUMBER'
-        self.env_map['CI_JOB_URL'] = 'BUILD_URL'
+        self.env_map['CI_PIPELINE_ID'] = 'BUILD_NUMBER'
+        self.env_map['CI_PIPELINE_URL'] = 'BUILD_URL'
         self.env_map['CI_JOB_NAME'] = 'JOB_NAME'
         self.env_map['CI_PROJECT_URL'] = 'REPO_URL'
         self.env_map['CI_COMMIT_SHA'] = 'COMMIT'
