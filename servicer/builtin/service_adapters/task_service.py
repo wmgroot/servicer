@@ -31,15 +31,22 @@ class Service(BaseService):
         return data
 
     def write_config_to_file(self, file_path, config_path='', file_type='yaml'):
-        config = self.dig(self.full_config, config_path)
+        self.logger.log('writing file from config: (%s -> %s)' % (config_path, file_path))
 
-        self.logger.log('Writing File:', level='debug')
+        local_config_prefix = 'self.'
+        if config_path.startswith(local_config_prefix):
+            self_config_path = config_path[len(local_config_prefix):]
+            config = self.dig(self.config, self_config_path)
+        else:
+            config = self.dig(self.full_config, config_path)
+
         self.logger.log(json.dumps(config, indent=2, default=str), level='debug')
 
         if file_type not in ['json', 'yaml']:
             self.logger.log('file_type: %s must be one of [yaml, json]' % file_type, level='error')
             exit(1)
 
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w') as fp:
             if file_type == 'yaml':
                 yaml.dump(config, fp, default_flow_style=False)
