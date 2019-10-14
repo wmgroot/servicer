@@ -1,3 +1,13 @@
+ci:
+  gitlab:
+    # set 'only' for each job to the service's allowed service_environments
+    infer_only: true
+    # set the gitlab stage name to the step name of the first service-step in the stage instead of stage{N}
+    infer_stage_name: true
+
+docker:
+  enabled: true
+
 environment:
   # adjust these settings to control which branches map to service environments
   mappings:

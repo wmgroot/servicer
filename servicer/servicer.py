@@ -687,6 +687,11 @@ class Servicer():
                     self.logger.log('skipping, no valid service environment found for service: %s' % service_name)
                     continue
 
+            if 'service_environment' in service_step:
+                if not self.glob_regex_match(service_step['service_environment'], self.service_environment):
+                    self.logger.log('skipping, no valid service environment found for service_step: %s:%s' % service_name, step_name)
+                    continue
+
             self.run_service_step(service, service_step)
 
             # TODO: rethink and standardize this termination process
@@ -744,13 +749,15 @@ class Servicer():
                 if 'commands' in c:
 
                     if 'context' in c:
+                        context_commands = []
+
                         if 'join' in c['context']:
                             c['commands'] = [c['context']['join'].join(c['commands'])]
 
                         if 'template' in c['context']:
                             c['commands'] = [c['context']['template'] % _c for _c in c['commands']]
 
-                        if 'docker' in c['context']:
+                        if self.config['docker']['enabled'] and 'docker' in c['context']:
                             docker_context = c['context']['docker']
                             docker_command = 'docker %s' % docker_context.get('docker_cmd', 'run')
 
@@ -778,11 +785,17 @@ class Servicer():
 
                             context_commands = [docker_command]
 
+                            if 'template' in docker_context:
+                                c['commands'] = [docker_context['template'] % _c for _c in c['commands']]
+
                             for _c in c['commands']:
                                 context_commands.append('docker exec %s %s' % (options['name'][0], _c))
                             # context_commands = ['%s %s' % (docker_command, _c) for _c in c['commands']]
                             context_commands.append('docker stop %s' % options['name'][0])
                             context_commands.append('docker rm %s' % options['name'][0])
+
+                        else:
+                            context_commands.extend(c['commands'])
 
                     for cmd in context_commands:
                         self.run_command(cmd)
