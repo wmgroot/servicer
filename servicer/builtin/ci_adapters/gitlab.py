@@ -26,6 +26,9 @@ class CIAdapter(BaseCIAdapter):
             'stages': [],
         }
 
+        if 'extra_args' in self.config['ci']:
+            data.update(self.config['ci']['extra_args'])
+
         for s, stage in enumerate(service_step_order):
             stage_name = 'stage%s' % s
 
@@ -47,6 +50,9 @@ class CIAdapter(BaseCIAdapter):
                         'servicer --service=%s --step=%s --ignore_dependencies --no_tag' % (service, step),
                     ],
                 }
+
+                if 'extra_args' in self.config['ci']:
+                    data[service_step].update(self.config['ci']['extra_job_args'])
 
                 if 'commands' in service_step_config and not 'config' in service_step_config:
                     data[service_step]['script'] = self.flatten_commands(service_step_config['commands'])
@@ -79,9 +85,6 @@ class CIAdapter(BaseCIAdapter):
 
                 if 'ci' in service_step_config and 'extra_args' in service_step_config['ci']:
                     data[service_step].update(service_step_config['ci']['extra_args'])
-
-        if 'extra_args' in self.config['ci']:
-            data.update(self.config['ci']['extra_args'])
 
         text = '\n'.join(['# %s' % line for line in self.auto_gen_header().split('\n')])
         text += '\n'

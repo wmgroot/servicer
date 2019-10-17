@@ -70,7 +70,7 @@ class ConfigLoader():
 
             if isinstance(include, dict):
                 path = include['path']
-                params.update(include['params'])
+                params = {**params, **include['params']}
 
             # TODO: investigate and fix a bug to enable dynamic tokens in include paths
             # path = self.token_interpolator.replace_tokens(path, params, ignore_missing_key=True, ignore_default=False)
