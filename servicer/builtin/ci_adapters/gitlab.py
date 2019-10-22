@@ -7,6 +7,8 @@ class CIAdapter(BaseCIAdapter):
     def __init__(self, logger=None):
         super().__init__(logger=logger)
 
+        self.pop_env = False
+
         # https://docs.gitlab.com/ee/ci/variables/predefined_variables.html
         self.env_map['CI_COMMIT_REF_NAME'] = 'BRANCH'
         self.env_map['CI_PIPELINE_ID'] = 'BUILD_NUMBER'
@@ -27,7 +29,7 @@ class CIAdapter(BaseCIAdapter):
         }
 
         if 'extra_args' in self.config['ci']:
-            data.update(self.config['ci']['extra_args'])
+            self.merge(self.config['ci']['extra_args'], data)
 
         for s, stage in enumerate(service_step_order):
             stage_name = 'stage%s' % s
@@ -52,18 +54,18 @@ class CIAdapter(BaseCIAdapter):
                 }
 
                 if 'extra_args' in self.config['ci']:
-                    data[service_step].update(self.config['ci']['extra_job_args'])
+                    self.merge(self.config['ci']['extra_job_args'], data[service_step])
 
                 if 'commands' in service_step_config and not 'config' in service_step_config:
                     data[service_step]['script'] = self.flatten_commands(service_step_config['commands'])
 
                 if 'gitlab' in self.config['ci'] and 'infer_only' in self.config['ci']['gitlab'] and self.config['ci']['gitlab']['infer_only']:
-                    only_list = []
+                    only_refs = []
                     if 'service_environment' in service_config:
                         se = service_config['service_environment']
                         if not isinstance(se, list):
                             se = [se]
-                        only_list.extend(se)
+                        only_refs.extend(se)
 
                     # TODO: pull step config efficiently
                     # if 'config' in self.config['steps'][step] and 'service_environment' in self.config['steps'][step]['config']:
@@ -72,19 +74,19 @@ class CIAdapter(BaseCIAdapter):
                     #         se = [se]
                     #     only_list.extend(se)
 
-                    if 'service_environment' in service_config:
-                        only_list = service_config['service_environment']
-                        if not isinstance(only_list, list):
-                            only_list = [only_list]
+                    if only_refs:
+                        if 'only' not in data[service_step]:
+                            data[service_step]['only'] = {}
+                        if 'refs' not in data[service_step]['only']:
+                            data[service_step]['only']['refs'] = []
 
-                    if only_list:
-                        data[service_step]['only'] = only_list
+                        data[service_step]['only']['refs'].extend(only_refs)
 
                 if 'ci' in service_config and 'extra_args' in service_config['ci']:
-                    data[service_step].update(service_config['ci']['extra_args'])
+                    self.merge(service_config['ci']['extra_args'], data[service_step])
 
                 if 'ci' in service_step_config and 'extra_args' in service_step_config['ci']:
-                    data[service_step].update(service_step_config['ci']['extra_args'])
+                    self.merge(service_step_config['ci']['extra_args'], data[service_step])
 
         text = '\n'.join(['# %s' % line for line in self.auto_gen_header().split('\n')])
         text += '\n'
@@ -113,3 +115,11 @@ class CIAdapter(BaseCIAdapter):
                 flattened_commands.append(c)
 
         return flattened_commands
+
+    def merge(self, source, destination):
+        for key, value in source.items():
+            if isinstance(value, dict):
+                node = destination.setdefault(key, {})
+                self.merge(value, node)
+            else:
+                destination[key] = value

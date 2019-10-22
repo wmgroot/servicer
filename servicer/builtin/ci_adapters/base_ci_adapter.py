@@ -4,13 +4,16 @@ class BaseCIAdapter():
 
     def __init__(self, logger=None):
         self.logger = logger
+        self.pop_env = True
         self.env_map = {}
 
     def convert_environment_variables(self):
         for key, value in os.environ.items():
             if key in self.env_map and not self.env_map[key] in os.environ:
                 os.environ[self.env_map[key]] = value
-                os.environ.pop(key)
+
+                if self.pop_env:
+                    os.environ.pop(key)
 
     def auto_gen_header(self):
         return """
