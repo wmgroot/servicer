@@ -21,7 +21,7 @@ setup(
     include_package_data = True,
     install_requires = [
         'ruamel.yaml==0.15.100',
-        'requests==2.20.1',
+        'requests==2.31.0',
     ],
     keywords = 'ci cd automation environment service',
     license = 'BSD3',
